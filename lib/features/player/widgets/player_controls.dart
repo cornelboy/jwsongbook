@@ -67,34 +67,40 @@ class PlayerControls extends ConsumerWidget {
                   _ControlButton(
                     icon: Icons.skip_previous,
                     onPressed: state.hasSong ? notifier.playPrevious : null,
-                    size: 34,
+                    color: AppColors.textInactive,
+                    size: 30,
                   ),
-                  const SizedBox(width: 4),
+                  const SizedBox(width: 10),
                   _ControlButton(
                     icon: Icons.replay_10,
                     onPressed: state.hasSong
                         ? () => seekBy(-const Duration(seconds: 10))
                         : null,
+                    color: AppColors.textHigh,
+                    size: 31,
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 18),
                   _PlayPauseButton(
                     isEnabled: state.hasSong,
                     isActivelyPlaying: isActivelyPlaying,
                     isLoading: state.isLoading,
                     onTap: notifier.togglePlayPause,
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 18),
                   _ControlButton(
                     icon: Icons.forward_10,
                     onPressed: state.hasSong
                         ? () => seekBy(const Duration(seconds: 10))
                         : null,
+                    color: AppColors.textHigh,
+                    size: 31,
                   ),
-                  const SizedBox(width: 4),
+                  const SizedBox(width: 10),
                   _ControlButton(
                     icon: Icons.skip_next,
                     onPressed: state.hasSong ? notifier.playNext : null,
-                    size: 34,
+                    color: AppColors.textInactive,
+                    size: 30,
                   ),
                 ],
               ),
@@ -121,11 +127,13 @@ class _ControlButton extends StatelessWidget {
   const _ControlButton({
     required this.icon,
     required this.onPressed,
+    this.color = AppColors.textMedium,
     this.size = 28,
   });
 
   final IconData icon;
   final VoidCallback? onPressed;
+  final Color color;
   final double size;
 
   @override
@@ -135,7 +143,7 @@ class _ControlButton extends StatelessWidget {
     return IconButton(
       icon: Icon(icon),
       iconSize: size,
-      color: enabled ? AppColors.textMedium : AppColors.textInactive,
+      color: enabled ? color : AppColors.textInactive,
       onPressed: onPressed,
       splashRadius: 24,
     );
