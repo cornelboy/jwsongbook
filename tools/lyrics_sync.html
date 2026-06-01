@@ -1,0 +1,1019 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>JW Songbook Lyrics Sync Tool</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #111018;
+      --panel: #1c1a27;
+      --panel-2: #272335;
+      --text: #f4f1ff;
+      --muted: #b9b1ca;
+      --accent: #9b7cff;
+      --accent-2: #44d7b6;
+      --danger: #ff6b7a;
+      --warning: #ffd166;
+      --border: #373248;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    main {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    h1, h2, h3 {
+      margin: 0 0 12px;
+    }
+
+    p, li {
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    code {
+      color: var(--accent-2);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(320px, 440px) 1fr;
+      gap: 20px;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px;
+    }
+
+    label {
+      display: block;
+      margin: 14px 0 6px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    input, textarea, button, select {
+      font: inherit;
+    }
+
+    input[type="text"],
+    input[type="number"],
+    textarea,
+    select {
+      width: 100%;
+      color: var(--text);
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+    }
+
+    textarea {
+      min-height: 260px;
+      resize: vertical;
+      line-height: 1.35;
+    }
+
+    audio {
+      width: 100%;
+      margin-top: 12px;
+    }
+
+    button {
+      color: var(--text);
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 12px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      border-color: var(--accent);
+    }
+
+    button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #130f1d;
+      font-weight: 700;
+    }
+
+    button.success {
+      background: var(--accent-2);
+      border-color: var(--accent-2);
+      color: #071d18;
+      font-weight: 700;
+    }
+
+    button.warning {
+      border-color: var(--warning);
+      color: var(--warning);
+    }
+
+    button.danger {
+      border-color: var(--danger);
+      color: var(--danger);
+    }
+
+    button:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .stat {
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: var(--panel-2);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .stat strong {
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .current {
+      margin: 16px 0;
+      padding: 18px;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      font-size: 24px;
+      line-height: 1.35;
+      min-height: 96px;
+    }
+
+    .phase {
+      color: var(--accent-2);
+      font-size: 14px;
+      margin-top: -6px;
+      margin-bottom: 12px;
+    }
+
+    .lines {
+      max-height: 600px;
+      overflow: auto;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+    }
+
+    .line {
+      display: grid;
+      grid-template-columns: 54px 92px 92px 76px 1fr;
+      gap: 10px;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--border);
+      color: var(--muted);
+      align-items: start;
+    }
+
+    .line:last-child {
+      border-bottom: 0;
+    }
+
+    .line.header {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: var(--panel-2);
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .line.active {
+      background: rgba(155, 124, 255, 0.16);
+      color: var(--text);
+    }
+
+    .line.done {
+      color: var(--text);
+    }
+
+    .line.warn {
+      color: var(--warning);
+    }
+
+    .time {
+      color: var(--accent-2);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .missing {
+      color: var(--danger);
+    }
+
+    .output {
+      min-height: 300px;
+      font-family: "Cascadia Code", Consolas, monospace;
+      font-size: 13px;
+      white-space: pre;
+    }
+
+    .hint {
+      margin-top: 10px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .guide {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-top: 14px;
+    }
+
+    .guide-card {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px;
+    }
+
+    .preview {
+      min-height: 160px;
+      display: grid;
+      gap: 12px;
+      align-content: center;
+      text-align: center;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 22px;
+    }
+
+    .preview-meta {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .preview-line {
+      font-size: 30px;
+      line-height: 1.4;
+    }
+
+    .preview-word {
+      color: var(--muted);
+      margin-right: 0.2em;
+    }
+
+    .preview-word.past {
+      color: var(--accent-2);
+    }
+
+    .preview-word.active {
+      color: var(--text);
+      background: rgba(155, 124, 255, 0.28);
+      border-radius: 6px;
+      padding: 0 3px;
+    }
+
+    .word-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .word-chip {
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 8px;
+      color: var(--muted);
+    }
+
+    .word-chip.done {
+      color: var(--text);
+      border-color: var(--accent-2);
+    }
+
+    .word-chip.active {
+      color: var(--text);
+      border-color: var(--accent);
+      background: rgba(155, 124, 255, 0.16);
+    }
+
+    .word-time {
+      display: block;
+      margin-top: 4px;
+      color: var(--accent-2);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    @media (max-width: 980px) {
+      .grid, .guide {
+        grid-template-columns: 1fr;
+      }
+
+      .line {
+        grid-template-columns: 46px 82px 82px 64px 1fr;
+        font-size: 13px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Lyrics Sync Tool</h1>
+    <p>
+      Paste plain lyrics, load the matching MP3, then mark the <strong>start</strong>
+      and <strong>end</strong> of each sung line. Gaps between one line's end and
+      the next line's start become instrumental or rest space.
+    </p>
+
+    <div class="grid">
+      <section class="panel">
+        <h2>Input</h2>
+
+        <label for="audioFile">Audio file</label>
+        <input id="audioFile" type="file" accept="audio/*">
+        <audio id="audio" controls></audio>
+
+        <label for="songNumber">Song number</label>
+        <input id="songNumber" type="number" min="1" max="999" value="1">
+
+        <label for="title">Title</label>
+        <input id="title" type="text" placeholder="Jehovah's Attributes">
+
+        <label for="leadMs">Preview lead, milliseconds</label>
+        <input id="leadMs" type="number" min="0" max="1000" step="50" value="300">
+
+        <label for="lyricsInput">Plain lyrics, one sung lyric line per row</label>
+        <textarea id="lyricsInput" spellcheck="false" placeholder="Paste lyrics here..."></textarea>
+
+        <div class="row" style="margin-top: 12px">
+          <button id="prepare" class="primary">Prepare lines</button>
+          <button id="reset" class="danger">Reset timings</button>
+        </div>
+
+        <p class="hint">
+          Keep instrumental breaks out of the lyric text. They are created by
+          leaving time between a line end and the next line start.
+        </p>
+      </section>
+
+      <section class="panel">
+        <h2>Tap Sync</h2>
+        <div class="row">
+          <span class="stat">Current: <strong id="currentTime">00:00.00</strong></span>
+          <span class="stat">Line: <strong id="lineCount">0 / 0</strong></span>
+          <span class="stat">Duration: <strong id="duration">00:00.00</strong></span>
+        </div>
+
+        <div id="currentLine" class="current">Prepare lines to begin.</div>
+        <div id="phase" class="phase">Waiting for lyrics.</div>
+
+        <div class="row">
+          <button id="playPause">Play / Pause</button>
+          <button id="back3">Back 3s</button>
+          <button id="markStart" class="success">Mark Start (S)</button>
+          <button id="markEnd" class="warning">Mark End (E)</button>
+          <button id="markNext" class="primary">End + Next Start (Space)</button>
+          <button id="undo">Undo</button>
+        </div>
+
+        <p class="hint">
+          Keyboard: <code>S</code> = line starts, <code>E</code> = line ends,
+          <code>Space</code>/<code>Enter</code> = current line ends and next line
+          starts at the same timestamp, <code>Backspace</code> = undo,
+          <code>Left Arrow</code> = back 3 seconds.
+        </p>
+
+        <div id="lines" class="lines" style="margin-top: 14px"></div>
+      </section>
+    </div>
+
+    <section class="panel" style="margin-top: 20px">
+      <h2>Exact Word Timing</h2>
+      <p>
+        Use this only for difficult lines, such as the final line or a line that
+        slows down. Click a line in the table, rewind, then press <code>W</code>
+        as each word is sung. Press <code>E</code> when the line ends.
+      </p>
+      <div class="row">
+        <button id="markWord" class="success">Mark Word (W)</button>
+        <button id="clearWords" class="danger">Clear Word Timings</button>
+      </div>
+      <p id="wordModeStatus" class="hint">No line selected yet.</p>
+      <div id="wordGrid" class="word-grid"></div>
+    </section>
+
+    <section class="panel" style="margin-top: 20px">
+      <h2>Live Preview</h2>
+      <p>
+        Play the audio after marking timings. This preview uses the current
+        timings in the tool, so you can check sync before downloading or
+        replacing the project file.
+      </p>
+      <div class="preview">
+        <div id="previewMeta" class="preview-meta">No active lyric line.</div>
+        <div id="previewLine" class="preview-line">Mark line timings, then play the audio.</div>
+      </div>
+    </section>
+
+    <section class="panel" style="margin-top: 20px">
+      <h2>Export</h2>
+      <div class="row">
+        <button id="generate" class="primary">Generate .elrc</button>
+        <button id="copy">Copy</button>
+        <button id="download">Download .elrc</button>
+      </div>
+      <label for="output">Generated Enhanced LRC</label>
+      <textarea id="output" class="output" spellcheck="false"></textarea>
+    </section>
+
+    <section class="panel" style="margin-top: 20px">
+      <h2>Guide</h2>
+      <div class="guide">
+        <div class="guide-card">
+          <h3>Normal Line</h3>
+          <p>
+            Press <code>S</code> exactly when singing starts. Press
+            <code>E</code> when the last sung word ends. The words are spread
+            inside that start-to-end range.
+          </p>
+        </div>
+        <div class="guide-card">
+          <h3>No Gap</h3>
+          <p>
+            If the next line begins immediately, press <code>Space</code>. That
+            ends the current line and starts the next line at the same time.
+          </p>
+        </div>
+        <div class="guide-card">
+          <h3>Instrumental Gap</h3>
+          <p>
+            Press <code>E</code> when the previous line finishes. Wait through
+            the music. Press <code>S</code> when the next line starts.
+          </p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const audioFile = document.getElementById('audioFile');
+    const audio = document.getElementById('audio');
+    const songNumber = document.getElementById('songNumber');
+    const title = document.getElementById('title');
+    const leadMs = document.getElementById('leadMs');
+    const lyricsInput = document.getElementById('lyricsInput');
+    const prepare = document.getElementById('prepare');
+    const reset = document.getElementById('reset');
+    const currentTime = document.getElementById('currentTime');
+    const duration = document.getElementById('duration');
+    const lineCount = document.getElementById('lineCount');
+    const currentLine = document.getElementById('currentLine');
+    const phase = document.getElementById('phase');
+    const linesElement = document.getElementById('lines');
+    const playPause = document.getElementById('playPause');
+    const back3 = document.getElementById('back3');
+    const markStart = document.getElementById('markStart');
+    const markEnd = document.getElementById('markEnd');
+    const markNext = document.getElementById('markNext');
+    const undo = document.getElementById('undo');
+    const generate = document.getElementById('generate');
+    const copy = document.getElementById('copy');
+    const download = document.getElementById('download');
+    const output = document.getElementById('output');
+    const previewMeta = document.getElementById('previewMeta');
+    const previewLine = document.getElementById('previewLine');
+    const markWord = document.getElementById('markWord');
+    const clearWords = document.getElementById('clearWords');
+    const wordModeStatus = document.getElementById('wordModeStatus');
+    const wordGrid = document.getElementById('wordGrid');
+
+    let lines = [];
+    let timings = [];
+    let index = 0;
+    let history = [];
+
+    audioFile.addEventListener('change', () => {
+      const file = audioFile.files[0];
+      if (!file) return;
+      audio.src = URL.createObjectURL(file);
+      const match = file.name.match(/(\d{1,3})/);
+      if (match) songNumber.value = String(Number(match[1]));
+    });
+
+    audio.addEventListener('timeupdate', () => {
+      updateStats();
+      renderPreview();
+    });
+    audio.addEventListener('durationchange', () => {
+      updateStats();
+      renderPreview();
+    });
+    leadMs.addEventListener('input', renderPreview);
+
+    prepare.addEventListener('click', () => {
+      lines = lyricsInput.value
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+      timings = lines.map(() => ({ start: null, end: null, wordStarts: [] }));
+      history = [];
+      index = 0;
+      output.value = '';
+      render();
+    });
+
+    reset.addEventListener('click', () => {
+      timings = lines.map(() => ({ start: null, end: null, wordStarts: [] }));
+      history = [];
+      index = 0;
+      output.value = '';
+      render();
+    });
+
+    playPause.addEventListener('click', () => {
+      if (audio.paused) {
+        audio.play();
+      } else {
+        audio.pause();
+      }
+    });
+
+    back3.addEventListener('click', () => {
+      audio.currentTime = Math.max(0, audio.currentTime - 3);
+    });
+
+    markStart.addEventListener('click', setStart);
+    markEnd.addEventListener('click', setEnd);
+    markNext.addEventListener('click', endAndNextStart);
+    markWord.addEventListener('click', markCurrentWord);
+    clearWords.addEventListener('click', clearCurrentWordTimings);
+    undo.addEventListener('click', undoLastAction);
+
+    generate.addEventListener('click', () => {
+      output.value = buildElrc();
+    });
+
+    copy.addEventListener('click', async () => {
+      if (!output.value) output.value = buildElrc();
+      await navigator.clipboard.writeText(output.value);
+    });
+
+    download.addEventListener('click', () => {
+      if (!output.value) output.value = buildElrc();
+      const number = String(Number(songNumber.value || 1)).padStart(3, '0');
+      const blob = new Blob([output.value], { type: 'text/plain;charset=utf-8' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `${number}.elrc`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    });
+
+    document.addEventListener('keydown', (event) => {
+      if (event.target === lyricsInput || event.target === output || event.target.tagName === 'INPUT') {
+        return;
+      }
+
+      if (event.code === 'KeyS') {
+        event.preventDefault();
+        setStart();
+      } else if (event.code === 'KeyE') {
+        event.preventDefault();
+        setEnd();
+      } else if (event.code === 'KeyW') {
+        event.preventDefault();
+        markCurrentWord();
+      } else if (event.code === 'Space' || event.code === 'Enter') {
+        event.preventDefault();
+        endAndNextStart();
+      } else if (event.code === 'Backspace') {
+        event.preventDefault();
+        undoLastAction();
+      } else if (event.code === 'ArrowLeft') {
+        event.preventDefault();
+        audio.currentTime = Math.max(0, audio.currentTime - 3);
+      }
+    });
+
+    function setStart() {
+      if (!hasActiveLine()) return;
+      snapshot();
+      timings[index].start = nowMs();
+      if (timings[index].end != null && timings[index].end <= timings[index].start) {
+        timings[index].end = null;
+      }
+      ensureWordStarts(index);
+      if (timings[index].wordStarts.length > 0) {
+        timings[index].wordStarts[0] = timings[index].start;
+      }
+      render();
+    }
+
+    function setEnd() {
+      if (!hasActiveLine()) return;
+      snapshot();
+      timings[index].end = Math.max(nowMs(), (timings[index].start ?? nowMs()) + 250);
+      moveToNextIncompleteLine(index + 1);
+      render();
+    }
+
+    function markCurrentWord() {
+      if (!hasActiveLine()) return;
+      const words = wordsForLine(lines[index]);
+      if (!words.length) return;
+
+      snapshot();
+      if (timings[index].start == null) {
+        timings[index].start = nowMs();
+      }
+      ensureWordStarts(index);
+
+      const wordStarts = timings[index].wordStarts;
+      let nextWord = wordStarts.findIndex((time) => time == null);
+      if (nextWord < 0) nextWord = words.length - 1;
+      wordStarts[nextWord] = nowMs();
+      render();
+    }
+
+    function clearCurrentWordTimings() {
+      if (!hasActiveLine()) return;
+      snapshot();
+      timings[index].wordStarts =
+        new Array(wordsForLine(lines[index]).length).fill(null);
+      render();
+    }
+
+    function endAndNextStart() {
+      if (!hasActiveLine()) return;
+      snapshot();
+      const time = nowMs();
+      timings[index].end = Math.max(time, (timings[index].start ?? time) + 250);
+      const nextIndex = index + 1;
+      if (nextIndex < lines.length) {
+        timings[nextIndex].start = time;
+        index = nextIndex;
+      } else {
+        index = lines.length;
+      }
+      render();
+    }
+
+    function undoLastAction() {
+      const previous = history.pop();
+      if (!previous) return;
+      timings = previous.timings.map((item) => ({
+        ...item,
+        wordStarts: [...(item.wordStarts || [])],
+      }));
+      index = previous.index;
+      render();
+    }
+
+    function snapshot() {
+      history.push({
+        index,
+        timings: timings.map((item) => ({
+          ...item,
+          wordStarts: [...(item.wordStarts || [])],
+        })),
+      });
+      if (history.length > 100) history.shift();
+    }
+
+    function hasActiveLine() {
+      return lines.length > 0 && index >= 0 && index < lines.length;
+    }
+
+    function nowMs() {
+      return Math.round((audio.currentTime || 0) * 1000);
+    }
+
+    function moveToNextIncompleteLine(fromIndex) {
+      for (let i = fromIndex; i < lines.length; i += 1) {
+        if (timings[i].start == null || timings[i].end == null) {
+          index = i;
+          return;
+        }
+      }
+      index = lines.length;
+    }
+
+    function render() {
+      updateStats();
+      currentLine.textContent = index < lines.length
+        ? lines[index]
+        : lines.length
+          ? 'All lines marked. Generate the .elrc file.'
+          : 'Prepare lines to begin.';
+
+      phase.textContent = describePhase();
+
+      linesElement.innerHTML = '';
+      const header = document.createElement('div');
+      header.className = 'line header';
+      header.innerHTML = '<div>#</div><div>Start</div><div>End</div><div>Len</div><div>Lyric</div>';
+      linesElement.appendChild(header);
+
+      lines.forEach((line, i) => {
+        const timing = timings[i];
+        const complete = timing.start != null && timing.end != null;
+        const invalid = complete && timing.end <= timing.start;
+        const row = document.createElement('div');
+        row.className = [
+          'line',
+          i === index ? 'active' : '',
+          complete ? 'done' : '',
+          invalid ? 'warn' : '',
+        ].filter(Boolean).join(' ');
+        row.innerHTML = `
+          <div>#${i + 1}</div>
+          <div class="${timing.start == null ? 'missing' : 'time'}">${timing.start == null ? '--:--.--' : formatMs(timing.start)}</div>
+          <div class="${timing.end == null ? 'missing' : 'time'}">${timing.end == null ? '--:--.--' : formatMs(timing.end)}</div>
+          <div>${complete ? formatDuration(timing.end - timing.start) : '--'}</div>
+          <div>${escapeHtml(line)}</div>
+        `;
+        row.addEventListener('click', () => {
+          index = i;
+          ensureWordStarts(index);
+          render();
+        });
+        linesElement.appendChild(row);
+      });
+
+      const active = linesElement.querySelector('.line.active');
+      if (active) active.scrollIntoView({ block: 'center' });
+      renderPreview();
+      renderWordMode();
+    }
+
+    function describePhase() {
+      if (!lines.length) return 'Waiting for lyrics.';
+      if (index >= lines.length) return 'Finished. Generate and download the .elrc file.';
+      const timing = timings[index];
+      if (timing.start == null) return 'Press S when this line starts.';
+      if (timing.end == null) return 'Press E when this line ends, or Space if the next line starts immediately.';
+      return 'Line is complete. Click another line or continue.';
+    }
+
+    function updateStats() {
+      currentTime.textContent = formatMs(nowMs());
+      duration.textContent = Number.isFinite(audio.duration)
+        ? formatMs(Math.round(audio.duration * 1000))
+        : '00:00.00';
+      const complete = timings.filter((item) => item.start != null && item.end != null).length;
+      lineCount.textContent = `${complete} / ${lines.length}`;
+    }
+
+    function buildElrc() {
+      if (!lines.length) return '';
+
+      const number = String(Number(songNumber.value || 1)).padStart(3, '0');
+      const header = [
+        `[ti:${title.value.trim() || `Song ${number}`}]`,
+        '[ar:Kingdom Songs]',
+        '',
+      ];
+
+      const body = lines.map((line, i) => {
+        const timing = normalizedTiming(i);
+        if (!timing) return `; UNSYNCED: ${line}`;
+        return lineToElrc(line, timing.start, timing.end, i);
+      });
+
+      return [...header, ...body, ''].join('\n');
+    }
+
+    function renderPreview() {
+      if (!lines.length) {
+        previewMeta.textContent = 'No active lyric line.';
+        previewLine.textContent = 'Mark line timings, then play the audio.';
+        return;
+      }
+
+      const position = nowMs() + previewLeadMs();
+      const activeIndex = activePreviewLineIndex(position);
+      if (activeIndex < 0) {
+        previewMeta.textContent = `Instrumental / rest at ${formatMs(position)}`;
+        previewLine.textContent = '...';
+        return;
+      }
+
+      const timing = normalizedTiming(activeIndex);
+      if (!timing) return;
+
+      const wordTimings =
+        wordTimingsForLine(lines[activeIndex], timing.start, timing.end, activeIndex);
+      const activeWord = activePreviewWordIndex(wordTimings, timing.end, position);
+
+      previewMeta.textContent =
+        `Line ${activeIndex + 1} of ${lines.length} | ${formatMs(timing.start)} - ${formatMs(timing.end)}`;
+      previewLine.innerHTML = wordTimings.map((word, i) => {
+        const state = i < activeWord ? 'past' : i === activeWord ? 'active' : '';
+        return `<span class="preview-word ${state}">${escapeHtml(word.text)}</span>`;
+      }).join(' ');
+    }
+
+    function renderWordMode() {
+      wordGrid.innerHTML = '';
+      if (!hasActiveLine()) {
+        wordModeStatus.textContent =
+          'Select a line in the timing table to edit exact word timings.';
+        return;
+      }
+
+      const words = wordsForLine(lines[index]);
+      ensureWordStarts(index);
+      const wordStarts = timings[index].wordStarts;
+      const nextWord = wordStarts.findIndex((time) => time == null);
+      wordModeStatus.textContent = nextWord < 0
+        ? `Line ${index + 1}: all words have exact timestamps.`
+        : `Line ${index + 1}: press W for "${words[nextWord]}".`;
+
+      words.forEach((word, i) => {
+        const chip = document.createElement('div');
+        const done = wordStarts[i] != null;
+        const active = i === nextWord;
+        chip.className = ['word-chip', done ? 'done' : '', active ? 'active' : '']
+          .filter(Boolean)
+          .join(' ');
+        chip.innerHTML = `
+          <strong>${escapeHtml(word)}</strong>
+          <span class="word-time">${done ? formatMs(wordStarts[i]) : '--:--.--'}</span>
+        `;
+        chip.addEventListener('click', () => {
+          snapshot();
+          wordStarts[i] = nowMs();
+          render();
+        });
+        wordGrid.appendChild(chip);
+      });
+    }
+
+    function activePreviewLineIndex(positionMs) {
+      for (let i = timings.length - 1; i >= 0; i -= 1) {
+        const timing = normalizedTiming(i);
+        if (timing && positionMs >= timing.start && positionMs < timing.end) return i;
+      }
+      return -1;
+    }
+
+    function activePreviewWordIndex(wordTimings, lineEndMs, positionMs) {
+      for (let i = wordTimings.length - 1; i >= 0; i -= 1) {
+        const start = wordTimings[i].start;
+        const end = i + 1 < wordTimings.length ? wordTimings[i + 1].start : lineEndMs;
+        if (positionMs >= start && positionMs < end) return i;
+      }
+      return -1;
+    }
+
+    function wordTimingsForLine(line, startMs, endMs, lineIndex) {
+      const words = wordsForLine(line);
+      if (!words.length) return [];
+
+      const exact = exactWordStartsForLine(lineIndex, startMs, endMs);
+      if (exact) {
+        return words.map((word, i) => ({ text: word, start: exact[i] }));
+      }
+
+      const totalWeight = words.reduce((sum, word) => sum + wordWeight(word), 0);
+      const durationMs = Math.max(500, endMs - startMs);
+      let elapsedWeight = 0;
+
+      return words.map((word) => {
+        const wordStart = startMs + Math.round((elapsedWeight / totalWeight) * durationMs);
+        elapsedWeight += wordWeight(word);
+        return { text: word, start: wordStart };
+      });
+    }
+
+    function normalizedTiming(i) {
+      const timing = timings[i];
+      if (timing.start == null) return null;
+      let end = timing.end;
+      if (end == null) {
+        const nextStart = findNextStart(i + 1);
+        end = nextStart ?? Math.round((audio.duration || (timing.start / 1000 + 4)) * 1000);
+      }
+      return {
+        start: timing.start,
+        end: Math.max(timing.start + 500, end),
+      };
+    }
+
+    function findNextStart(fromIndex) {
+      for (let i = fromIndex; i < timings.length; i += 1) {
+        if (timings[i].start != null) return timings[i].start;
+      }
+      return null;
+    }
+
+    function lineToElrc(line, startMs, endMs, lineIndex) {
+      const words = wordsForLine(line);
+      if (!words.length) return `[${formatMs(startMs)}]`;
+
+      const exact = exactWordStartsForLine(lineIndex, startMs, endMs);
+      if (exact) {
+        const timedWords =
+          words.map((word, i) => `<${formatMs(exact[i])}>${word}`);
+        return `[${formatMs(startMs)}]${timedWords.join(' ')}<${formatMs(endMs)}>`;
+      }
+
+      const totalWeight = words.reduce((sum, word) => sum + wordWeight(word), 0);
+      const durationMs = Math.max(500, endMs - startMs);
+      let elapsedWeight = 0;
+
+      const timedWords = words.map((word) => {
+        const wordStart = startMs + Math.round((elapsedWeight / totalWeight) * durationMs);
+        elapsedWeight += wordWeight(word);
+        return `<${formatMs(wordStart)}>${word}`;
+      });
+
+      return `[${formatMs(startMs)}]${timedWords.join(' ')}<${formatMs(endMs)}>`;
+    }
+
+    function ensureWordStarts(lineIndex) {
+      if (lineIndex < 0 || lineIndex >= lines.length) return;
+      const words = wordsForLine(lines[lineIndex]);
+      const current = timings[lineIndex].wordStarts || [];
+      timings[lineIndex].wordStarts = words.map((_, i) => current[i] ?? null);
+    }
+
+    function wordsForLine(line) {
+      return line.match(/\S+/g) || [];
+    }
+
+    function exactWordStartsForLine(lineIndex, startMs, endMs) {
+      if (lineIndex < 0) return null;
+      const words = wordsForLine(lines[lineIndex]);
+      const starts = timings[lineIndex].wordStarts || [];
+      if (starts.length !== words.length || starts.some((time) => time == null)) {
+        return null;
+      }
+
+      return starts.map((time, i) => {
+        const min = i === 0 ? startMs : starts[i - 1] + 10;
+        const max = endMs - 10;
+        return Math.min(Math.max(time, min), max);
+      });
+    }
+
+    function previewLeadMs() {
+      return Math.max(0, Number(leadMs.value || 0));
+    }
+
+    function wordWeight(word) {
+      return Math.max(1, word.replace(/[^\p{L}\p{N}]/gu, '').length);
+    }
+
+    function formatMs(ms) {
+      const safe = Math.max(0, ms || 0);
+      const minutes = Math.floor(safe / 60000);
+      const seconds = Math.floor((safe % 60000) / 1000);
+      const centiseconds = Math.floor((safe % 1000) / 10);
+      return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(centiseconds).padStart(2, '0')}`;
+    }
+
+    function formatDuration(ms) {
+      return `${(Math.max(0, ms) / 1000).toFixed(1)}s`;
+    }
+
+    function escapeHtml(value) {
+      return value
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+
+    render();
+  </script>
+</body>
+</html>

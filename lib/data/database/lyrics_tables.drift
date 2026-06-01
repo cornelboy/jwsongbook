@@ -1,0 +1,23 @@
+-- Lyrics tables defined in SQL DSL to avoid drift_dev Dart-column AST
+-- parsing incompatibilities with Dart 3.11 (FunctionExpressionInvocation bug).
+import 'package:jwsongbook/data/database/tables/songs_table.dart';
+
+CREATE TABLE lyrics_lines (
+  id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+  song_id INTEGER NOT NULL REFERENCES songs(id) ON DELETE CASCADE,
+  line_index INTEGER NOT NULL,
+  start_ms INTEGER NOT NULL,
+  end_ms INTEGER NOT NULL,
+  text TEXT NOT NULL AS lineText,
+  UNIQUE (song_id, line_index)
+);
+
+CREATE TABLE lyrics_words (
+  id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+  line_id INTEGER NOT NULL REFERENCES lyrics_lines(id) ON DELETE CASCADE,
+  word_index INTEGER NOT NULL,
+  start_ms INTEGER NOT NULL,
+  end_ms INTEGER NOT NULL,
+  text TEXT NOT NULL AS wordText,
+  UNIQUE (line_id, word_index)
+);
