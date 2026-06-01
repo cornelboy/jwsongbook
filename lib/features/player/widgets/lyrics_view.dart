@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -148,13 +146,6 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
             const _LyricsEdgeFades(),
             // "Follow lyrics" button — only when auto-scroll is on and the
             // user has scrolled away from the active line.
-            if (cursor.showInstrumentalGap)
-              Center(
-                child: _InstrumentalEllipsis(
-                  congregationMode: settings.congregationMode,
-                  fontScaleFactor: settings.fontScaleFactor,
-                ),
-              ),
             if (_userScrolled && settings.autoScrollEnabled)
               Positioned(
                 top: 12,
@@ -223,55 +214,6 @@ class _LyricsEdgeFades extends StatelessWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _InstrumentalEllipsis extends StatefulWidget {
-  const _InstrumentalEllipsis({
-    required this.congregationMode,
-    required this.fontScaleFactor,
-  });
-
-  final bool congregationMode;
-  final double fontScaleFactor;
-
-  @override
-  State<_InstrumentalEllipsis> createState() => _InstrumentalEllipsisState();
-}
-
-class _InstrumentalEllipsisState extends State<_InstrumentalEllipsis> {
-  Timer? _timer;
-  int _dots = 1;
-
-  @override
-  void initState() {
-    super.initState();
-    _timer = Timer.periodic(const Duration(milliseconds: 450), (_) {
-      if (!mounted) return;
-      setState(() => _dots = _dots == 3 ? 1 : _dots + 1);
-    });
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final base = widget.congregationMode
-        ? AppTypography.lyricsProjectionUpcoming
-        : AppTypography.lyricsUpcoming;
-
-    return Text(
-      '.' * _dots,
-      style: base.copyWith(
-        fontSize: (base.fontSize! * widget.fontScaleFactor) + 12,
-        color: Colors.white,
-        letterSpacing: 4,
       ),
     );
   }
