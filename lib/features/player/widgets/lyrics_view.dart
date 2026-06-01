@@ -8,6 +8,7 @@ import 'package:jwsongbook/core/theme/app_colors.dart';
 import 'package:jwsongbook/core/theme/app_typography.dart';
 import 'package:jwsongbook/data/models/synced_lyrics_model.dart';
 import 'package:jwsongbook/features/player/providers/lyrics_sync_provider.dart';
+import 'package:jwsongbook/features/player/providers/player_provider.dart';
 import 'package:jwsongbook/features/settings/screens/settings_screen.dart';
 import 'package:jwsongbook/shared/widgets/empty_state.dart';
 
@@ -59,6 +60,7 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
     final lyricsAsync = ref.watch(currentSongLyricsProvider);
     final cursor = ref.watch(syncCursorProvider);
     final settings = ref.watch(appSettingsNotifierProvider);
+    final playerNotifier = ref.read(playerNotifierProvider.notifier);
 
     // Auto-scroll only when the setting is on and the user hasn't manually
     // scrolled away.
@@ -108,27 +110,38 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
                   final isActive = index == cursor.lineIndex;
                   final isPast = index < cursor.lineIndex;
 
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: AppConstants.spaceSM,
+                  return GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () {
+                      setState(() {
+                        _userScrolled = false;
+                        _lastScrolledLineIndex = -1;
+                      });
+                      playerNotifier.seekMs(line.startMs);
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: AppConstants.spaceSM,
+                      ),
+                      child: isActive
+                          ? _ActiveLyricLine(
+                              line: line,
+                              cursor: cursor,
+                              congregationMode: settings.congregationMode,
+                              fontScaleFactor: settings.fontScaleFactor,
+                            )
+                          : _InactiveLyricLine(
+                              line: line,
+                              isPast: isPast,
+                              congregationMode: settings.congregationMode,
+                              fontScaleFactor: settings.fontScaleFactor,
+                            ),
                     ),
-                    child: isActive
-                        ? _ActiveLyricLine(
-                            line: line,
-                            cursor: cursor,
-                            congregationMode: settings.congregationMode,
-                            fontScaleFactor: settings.fontScaleFactor,
-                          )
-                        : _InactiveLyricLine(
-                            line: line,
-                            isPast: isPast,
-                            congregationMode: settings.congregationMode,
-                            fontScaleFactor: settings.fontScaleFactor,
-                          ),
                   );
                 },
               ),
             ),
+            const _LyricsEdgeFades(),
             // "Follow lyrics" button — only when auto-scroll is on and the
             // user has scrolled away from the active line.
             if (cursor.showInstrumentalGap)
@@ -140,7 +153,7 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
               ),
             if (_userScrolled && settings.autoScrollEnabled)
               Positioned(
-                bottom: 16,
+                top: 16,
                 right: 16,
                 child: FilledButton.icon(
                   onPressed: () {
@@ -166,6 +179,41 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
 }
 
 // ── Active line: word-by-word progressive fill ────────────────────────────────
+
+class _LyricsEdgeFades extends StatelessWidget {
+  const _LyricsEdgeFades();
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Column(
+        children: [
+          Container(
+            height: 72,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [AppColors.background, Colors.transparent],
+              ),
+            ),
+          ),
+          const Spacer(),
+          Container(
+            height: 88,
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Colors.transparent, AppColors.background],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 
 class _InstrumentalEllipsis extends StatefulWidget {
   const _InstrumentalEllipsis({
