@@ -19,83 +19,89 @@ class PlayerControls extends ConsumerWidget {
         : 0.0;
     final isActivelyPlaying = state.isPlaying && !state.isCompleted;
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // ── Seek bar ──────────────────────────────────────────────────────
-        Slider(
-          value: progress.clamp(0.0, 1.0),
-          onChanged: state.hasSong
-              ? (v) => notifier.seekMs(
-                    (v * duration.inMilliseconds).round(),
-                  )
-              : null,
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    void seekBy(Duration delta) {
+      final target = position + delta;
+      if (target < Duration.zero) {
+        notifier.seek(Duration.zero);
+      } else if (duration > Duration.zero && target > duration) {
+        notifier.seek(duration);
+      } else {
+        notifier.seek(target);
+      }
+    }
+
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        color: AppColors.surfaceElevated,
+        border: Border(top: BorderSide(color: AppColors.divider)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 14),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Text(_formatDuration(position), style: _timeStyle),
-              Text(_formatDuration(duration), style: _timeStyle),
+              Slider(
+                value: progress.clamp(0.0, 1.0),
+                onChanged: state.hasSong
+                    ? (v) => notifier.seekMs(
+                          (v * duration.inMilliseconds).round(),
+                        )
+                    : null,
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(_formatDuration(position), style: _timeStyle),
+                    Text(_formatDuration(duration), style: _timeStyle),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _ControlButton(
+                    icon: Icons.skip_previous,
+                    onPressed: state.hasSong ? notifier.playPrevious : null,
+                    size: 34,
+                  ),
+                  const SizedBox(width: 4),
+                  _ControlButton(
+                    icon: Icons.replay_10,
+                    onPressed: state.hasSong
+                        ? () => seekBy(-const Duration(seconds: 10))
+                        : null,
+                  ),
+                  const SizedBox(width: 12),
+                  _PlayPauseButton(
+                    isEnabled: state.hasSong,
+                    isActivelyPlaying: isActivelyPlaying,
+                    isLoading: state.isLoading,
+                    onTap: notifier.togglePlayPause,
+                  ),
+                  const SizedBox(width: 12),
+                  _ControlButton(
+                    icon: Icons.forward_10,
+                    onPressed: state.hasSong
+                        ? () => seekBy(const Duration(seconds: 10))
+                        : null,
+                  ),
+                  const SizedBox(width: 4),
+                  _ControlButton(
+                    icon: Icons.skip_next,
+                    onPressed: state.hasSong ? notifier.playNext : null,
+                    size: 34,
+                  ),
+                ],
+              ),
             ],
           ),
         ),
-        const SizedBox(height: 8),
-
-        // ── Transport controls ────────────────────────────────────────────
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // Previous song
-            IconButton(
-              icon: const Icon(Icons.skip_previous),
-              iconSize: 36,
-              color:
-                  state.hasSong ? AppColors.textMedium : AppColors.textInactive,
-              onPressed: state.hasSong ? notifier.playPrevious : null,
-            ),
-            const SizedBox(width: 8),
-            // Play / Pause
-            GestureDetector(
-              onTap: state.hasSong ? notifier.togglePlayPause : null,
-              child: Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: state.hasSong
-                      ? AppColors.primaryPurple
-                      : AppColors.textInactive,
-                ),
-                child: state.isLoading
-                    ? const Padding(
-                        padding: EdgeInsets.all(16),
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : Icon(
-                        isActivelyPlaying ? Icons.pause : Icons.play_arrow,
-                        size: 36,
-                        color: Colors.white,
-                      ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            // Next song
-            IconButton(
-              icon: const Icon(Icons.skip_next),
-              iconSize: 36,
-              color:
-                  state.hasSong ? AppColors.textMedium : AppColors.textInactive,
-              onPressed: state.hasSong ? notifier.playNext : null,
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-      ],
+      ),
     );
   }
 
@@ -108,5 +114,82 @@ class PlayerControls extends ConsumerWidget {
     final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
     final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
     return '$m:$s';
+  }
+}
+
+class _ControlButton extends StatelessWidget {
+  const _ControlButton({
+    required this.icon,
+    required this.onPressed,
+    this.size = 28,
+  });
+
+  final IconData icon;
+  final VoidCallback? onPressed;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onPressed != null;
+
+    return IconButton(
+      icon: Icon(icon),
+      iconSize: size,
+      color: enabled ? AppColors.textMedium : AppColors.textInactive,
+      onPressed: onPressed,
+      splashRadius: 24,
+    );
+  }
+}
+
+class _PlayPauseButton extends StatelessWidget {
+  const _PlayPauseButton({
+    required this.isEnabled,
+    required this.isActivelyPlaying,
+    required this.isLoading,
+    required this.onTap,
+  });
+
+  final bool isEnabled;
+  final bool isActivelyPlaying;
+  final bool isLoading;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: isEnabled ? onTap : null,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        width: 68,
+        height: 68,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: isEnabled ? AppColors.primaryPurple : AppColors.textInactive,
+          boxShadow: isEnabled
+              ? [
+                  BoxShadow(
+                    color: AppColors.primaryPurple.withAlpha(70),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ]
+              : null,
+        ),
+        child: isLoading
+            ? const Padding(
+                padding: EdgeInsets.all(18),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
+            : Icon(
+                isActivelyPlaying ? Icons.pause : Icons.play_arrow,
+                size: 38,
+                color: Colors.white,
+              ),
+      ),
+    );
   }
 }

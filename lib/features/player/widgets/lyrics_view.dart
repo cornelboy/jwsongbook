@@ -97,46 +97,50 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
                 }
                 return false;
               },
-              child: ListView.builder(
-                controller: _scrollController,
-                padding: EdgeInsets.symmetric(
-                  horizontal: AppConstants.screenPaddingH,
-                  vertical: MediaQuery.of(context).size.height *
-                      AppConstants.activeLyricLinePosition,
-                ),
-                itemCount: lyrics.lines.length,
-                itemBuilder: (context, index) {
-                  final line = lyrics.lines[index];
-                  final isActive = index == cursor.lineIndex;
-                  final isPast = index < cursor.lineIndex;
-
-                  return GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () {
-                      setState(() {
-                        _userScrolled = false;
-                        _lastScrolledLineIndex = -1;
-                      });
-                      playerNotifier.seekMs(line.startMs);
-                    },
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        vertical: AppConstants.spaceSM,
-                      ),
-                      child: isActive
-                          ? _ActiveLyricLine(
-                              line: line,
-                              cursor: cursor,
-                              congregationMode: settings.congregationMode,
-                              fontScaleFactor: settings.fontScaleFactor,
-                            )
-                          : _InactiveLyricLine(
-                              line: line,
-                              isPast: isPast,
-                              congregationMode: settings.congregationMode,
-                              fontScaleFactor: settings.fontScaleFactor,
-                            ),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return ListView.builder(
+                    controller: _scrollController,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: AppConstants.screenPaddingH,
+                      vertical: constraints.maxHeight *
+                          AppConstants.activeLyricLinePosition,
                     ),
+                    itemCount: lyrics.lines.length,
+                    itemBuilder: (context, index) {
+                      final line = lyrics.lines[index];
+                      final isActive = index == cursor.lineIndex;
+                      final isPast = index < cursor.lineIndex;
+
+                      return GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {
+                          setState(() {
+                            _userScrolled = false;
+                            _lastScrolledLineIndex = -1;
+                          });
+                          playerNotifier.seekMs(line.startMs);
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: AppConstants.spaceSM,
+                          ),
+                          child: isActive
+                              ? _ActiveLyricLine(
+                                  line: line,
+                                  cursor: cursor,
+                                  congregationMode: settings.congregationMode,
+                                  fontScaleFactor: settings.fontScaleFactor,
+                                )
+                              : _InactiveLyricLine(
+                                  line: line,
+                                  isPast: isPast,
+                                  congregationMode: settings.congregationMode,
+                                  fontScaleFactor: settings.fontScaleFactor,
+                                ),
+                        ),
+                      );
+                    },
                   );
                 },
               ),
