@@ -157,9 +157,9 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
               ),
             if (_userScrolled && settings.autoScrollEnabled)
               Positioned(
-                top: 16,
+                top: 12,
                 right: 16,
-                child: FilledButton.icon(
+                child: OutlinedButton.icon(
                   onPressed: () {
                     setState(() {
                       _userScrolled = false;
@@ -167,11 +167,20 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
                     });
                     _scrollToLine(cursor.lineIndex);
                   },
-                  icon: const Icon(Icons.vertical_align_center, size: 18),
-                  label: const Text('Follow'),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.primaryPurple.withAlpha(220),
-                    foregroundColor: Colors.white,
+                  icon: const Icon(Icons.sync, size: 16),
+                  label: const Text('Sync'),
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: AppColors.surfaceElevated.withAlpha(230),
+                    foregroundColor: AppColors.primaryPurple,
+                    side: BorderSide(
+                      color: AppColors.primaryPurple.withAlpha(160),
+                    ),
+                    minimumSize: const Size(0, 36),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    textStyle: AppTypography.caption.copyWith(
+                      color: AppColors.primaryPurple,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
               ),

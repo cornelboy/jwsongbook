@@ -88,7 +88,11 @@ class PlayerNotifier extends _$PlayerNotifier {
         if (dur != null) state = state.copyWith(duration: dur);
       }),
       _player.processingStateStream.listen((processingState) {
-        state = state.copyWith(processingState: processingState);
+        state = state.copyWith(
+          processingState: processingState,
+          isLoading: processingState == ProcessingState.loading ||
+              processingState == ProcessingState.buffering,
+        );
       }),
     ];
 
@@ -120,9 +124,9 @@ class PlayerNotifier extends _$PlayerNotifier {
       );
 
       await _player.setAudioSource(source);
-      await _player.play();
-      await _repo.markPlayed(song);
       state = state.copyWith(isLoading: false);
+      unawaited(_player.play());
+      await _repo.markPlayed(song);
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
