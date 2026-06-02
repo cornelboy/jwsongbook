@@ -1,3 +1,4 @@
+import 'package:jwsongbook/core/constants/app_constants.dart';
 import 'package:jwsongbook/data/database/app_database.dart';
 
 /// Rich domain model wrapping the Drift [Song] row.
@@ -9,4 +10,7 @@ extension SongX on Song {
   /// True if the elapsed [positionMs] is within this song's duration.
   bool isPositionValid(int positionMs) =>
       durationMs == null || positionMs <= durationMs!;
+
+  bool get hasLocalAudio =>
+      isDownloaded || AppConstants.isBundledSongNumber(number);
 }

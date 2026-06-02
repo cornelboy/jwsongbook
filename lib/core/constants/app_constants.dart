@@ -3,6 +3,15 @@ abstract final class AppConstants {
   // ── Catalogue ──────────────────────────────────────────────────────────
   static const int totalSongs = 162;
 
+  /// Temporary bundled starter set while remote downloads are being wired.
+  static const Set<int> bundledSongNumbers = {1, 2, 3};
+
+  /// Set this once the download server manifest is live.
+  static const String? songManifestUrl = null;
+
+  static bool isBundledSongNumber(int songNumber) =>
+      bundledSongNumbers.contains(songNumber);
+
   // ── Lyrics sync engine ────────────────────────────────────────────────
   /// How often the sync ticker fires (16 ms ≈ 60 fps).
   static const int syncTickMs = 16;

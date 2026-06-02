@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jwsongbook/core/constants/app_constants.dart';
 import 'package:jwsongbook/core/theme/app_colors.dart';
 import 'package:jwsongbook/core/theme/app_typography.dart';
+import 'package:jwsongbook/features/downloads/providers/download_controller.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'settings_screen.g.dart';
@@ -56,6 +57,10 @@ class SettingsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(appSettingsNotifierProvider);
     final notifier = ref.read(appSettingsNotifierProvider.notifier);
+    final downloadState = ref.watch(downloadControllerProvider);
+    final isDownloading = downloadState.songs.values.any(
+      (status) => status.isDownloading,
+    );
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
@@ -96,6 +101,26 @@ class SettingsScreen extends ConsumerWidget {
           const Divider(height: 32),
 
           // ── About ─────────────────────────────────────────────────────────
+          const _SectionHeader('Downloads'),
+          ListTile(
+            leading: isDownloading
+                ? const SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.download_outlined),
+            title: const Text('Download all songs'),
+            subtitle: const Text(
+              AppConstants.songManifestUrl == null
+                  ? 'Waiting for server setup'
+                  : 'Save every song for offline use',
+            ),
+            onTap: isDownloading ? null : () => _downloadAllSongs(context, ref),
+          ),
+
+          const Divider(height: 32),
+
           const _SectionHeader('About'),
           const ListTile(
             title: Text('Total Songs'),
@@ -111,6 +136,19 @@ class SettingsScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _downloadAllSongs(BuildContext context, WidgetRef ref) async {
+    await ref.read(downloadControllerProvider.notifier).downloadAllSongs();
+    if (!context.mounted) return;
+
+    final message = ref.read(downloadControllerProvider).globalMessage;
+    if (message != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
+      ref.read(downloadControllerProvider.notifier).clearGlobalMessage();
+    }
   }
 }
 

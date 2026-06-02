@@ -4,6 +4,7 @@ import 'package:jwsongbook/core/theme/app_colors.dart';
 import 'package:jwsongbook/core/theme/app_typography.dart';
 import 'package:jwsongbook/data/database/app_database.dart';
 import 'package:jwsongbook/data/models/song_model.dart';
+import 'package:jwsongbook/features/downloads/providers/download_controller.dart';
 
 class SongCard extends StatelessWidget {
   const SongCard({
@@ -11,12 +12,16 @@ class SongCard extends StatelessWidget {
     required this.song,
     required this.onTap,
     this.onFavoriteTap,
+    this.onDownloadTap,
+    this.downloadStatus = const SongDownloadStatus.idle(),
     this.isCurrentlyPlaying = false,
   });
 
   final Song song;
   final VoidCallback onTap;
   final VoidCallback? onFavoriteTap;
+  final VoidCallback? onDownloadTap;
+  final SongDownloadStatus downloadStatus;
   final bool isCurrentlyPlaying;
 
   @override
@@ -49,10 +54,17 @@ class SongCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   _SongMetaRow(
                     hasSyncedLyrics: song.hasSyncedLyrics,
+                    hasLocalAudio:
+                        song.hasLocalAudio || downloadStatus.isDownloaded,
                     isCurrentlyPlaying: isCurrentlyPlaying,
                   ),
                 ],
               ),
+            ),
+            _DownloadAction(
+              hasLocalAudio: song.hasLocalAudio || downloadStatus.isDownloaded,
+              status: downloadStatus,
+              onTap: onDownloadTap,
             ),
             if (onFavoriteTap != null)
               IconButton(
@@ -114,10 +126,12 @@ class _SongNumberBadge extends StatelessWidget {
 class _SongMetaRow extends StatelessWidget {
   const _SongMetaRow({
     required this.hasSyncedLyrics,
+    required this.hasLocalAudio,
     required this.isCurrentlyPlaying,
   });
 
   final bool hasSyncedLyrics;
+  final bool hasLocalAudio;
   final bool isCurrentlyPlaying;
 
   @override
@@ -126,38 +140,116 @@ class _SongMetaRow extends StatelessWidget {
       const Text('Kingdom Song', style: AppTypography.caption),
     ];
 
-    if (hasSyncedLyrics) {
-      children.addAll([
-        const SizedBox(width: 8),
-        const Icon(
-          Icons.lyrics_outlined,
-          size: 13,
-          color: AppColors.textMedium,
+    if (hasLocalAudio) {
+      children.add(
+        const _MetaItem(
+          icon: Icons.check_circle_outline,
+          label: 'Stored',
         ),
-        const SizedBox(width: 4),
-        const Text('Synced', style: AppTypography.caption),
-      ]);
+      );
+    }
+
+    if (hasSyncedLyrics) {
+      children.add(
+        const _MetaItem(
+          icon: Icons.lyrics_outlined,
+          label: 'Synced',
+        ),
+      );
     }
 
     if (isCurrentlyPlaying) {
-      children.addAll([
-        const SizedBox(width: 8),
-        const Icon(
-          Icons.equalizer,
-          size: 13,
+      children.add(
+        _MetaItem(
+          icon: Icons.equalizer,
+          label: 'Playing',
           color: AppColors.primaryPurple,
-        ),
-        const SizedBox(width: 4),
-        Text(
-          'Playing',
           style: AppTypography.caption.copyWith(
             color: AppColors.primaryPurple,
             fontWeight: FontWeight.w600,
           ),
         ),
-      ]);
+      );
     }
 
-    return Row(children: children);
+    return Wrap(
+      spacing: 8,
+      runSpacing: 2,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: children,
+    );
+  }
+}
+
+class _MetaItem extends StatelessWidget {
+  const _MetaItem({
+    required this.icon,
+    required this.label,
+    this.color = AppColors.textMedium,
+    this.style = AppTypography.caption,
+  });
+
+  final IconData icon;
+  final String label;
+  final Color color;
+  final TextStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 13, color: color),
+        const SizedBox(width: 4),
+        Text(label, style: style),
+      ],
+    );
+  }
+}
+
+class _DownloadAction extends StatelessWidget {
+  const _DownloadAction({
+    required this.hasLocalAudio,
+    required this.status,
+    required this.onTap,
+  });
+
+  final bool hasLocalAudio;
+  final SongDownloadStatus status;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    if (hasLocalAudio) {
+      return const SizedBox(width: 8);
+    }
+
+    if (status.isDownloading) {
+      return SizedBox(
+        width: 48,
+        height: 48,
+        child: Center(
+          child: SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              value: status.progress,
+              color: AppColors.primaryPurple,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return IconButton(
+      onPressed: onTap,
+      icon: Icon(
+        status.hasError ? Icons.error_outline : Icons.download_outlined,
+        color: status.hasError ? AppColors.error : AppColors.textMedium,
+      ),
+      tooltip: status.hasError ? 'Retry download' : 'Download',
+      splashRadius: 22,
+    );
   }
 }

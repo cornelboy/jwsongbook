@@ -7,7 +7,9 @@ import 'package:jwsongbook/core/router/app_router.dart';
 import 'package:jwsongbook/core/theme/app_colors.dart';
 import 'package:jwsongbook/core/theme/app_typography.dart';
 import 'package:jwsongbook/data/database/app_database.dart';
+import 'package:jwsongbook/data/models/song_model.dart';
 import 'package:jwsongbook/data/repositories/songs_repository.dart';
+import 'package:jwsongbook/features/downloads/providers/download_controller.dart';
 import 'package:jwsongbook/features/library/widgets/song_card.dart';
 import 'package:jwsongbook/features/player/providers/player_provider.dart';
 import 'package:jwsongbook/shared/widgets/empty_state.dart';
@@ -36,6 +38,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         : ref.watch(searchSongsProvider(_query));
     final currentSong =
         ref.watch(playerNotifierProvider.select((s) => s.currentSong));
+    final downloadState = ref.watch(downloadControllerProvider);
     final hasQuery = _query.isNotEmpty;
 
     return Scaffold(
@@ -105,7 +108,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   return SongCard(
                     song: song,
                     isCurrentlyPlaying: currentSong?.id == song.id,
+                    downloadStatus: downloadState.statusFor(song.number),
                     onTap: () => _playSong(song, context),
+                    onDownloadTap: () => _downloadSong(song, context),
                     onFavoriteTap: () => _toggleFavorite(song),
                   );
                 },
@@ -120,8 +125,25 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 
   void _playSong(Song song, BuildContext context) {
+    if (!song.hasLocalAudio) {
+      _downloadSong(song, context);
+      return;
+    }
+
     ref.read(playerNotifierProvider.notifier).playSong(song);
     context.go(AppRoutes.nowPlaying);
+  }
+
+  Future<void> _downloadSong(Song song, BuildContext context) async {
+    await ref.read(downloadControllerProvider.notifier).downloadSong(song);
+    if (!context.mounted) return;
+
+    final status = ref.read(downloadControllerProvider).statusFor(song.number);
+    if (status.hasError) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(status.message ?? 'Download failed.')),
+      );
+    }
   }
 
   void _toggleFavorite(Song song) {
