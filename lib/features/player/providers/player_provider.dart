@@ -108,6 +108,11 @@ class PlayerNotifier extends _$PlayerNotifier {
   // ── Playback control ──────────────────────────────────────────────────────
 
   Future<void> playSong(Song song) async {
+    if (state.currentSong?.id == song.id) {
+      state = state.copyWith(error: null);
+      return;
+    }
+
     state = state.copyWith(isLoading: true, currentSong: song, error: null);
 
     try {
