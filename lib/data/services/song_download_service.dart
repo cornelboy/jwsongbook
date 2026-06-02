@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -24,6 +25,10 @@ class SongDownloadService {
     required LyricsRepository lyricsRepository,
   })  : _songsRepository = songsRepository,
         _lyricsRepository = lyricsRepository;
+
+  static const int _maxAttempts = 3;
+  static const Duration _connectionTimeout = Duration(seconds: 15);
+  static const Duration _retryDelay = Duration(milliseconds: 500);
 
   final SongsRepository _songsRepository;
   final LyricsRepository _lyricsRepository;
@@ -78,9 +83,15 @@ class SongDownloadService {
   }
 
   Future<String> _readUriAsString(Uri uri) async {
-    final client = HttpClient();
+    return _withRetries(() => _readUriAsStringOnce(uri));
+  }
+
+  Future<String> _readUriAsStringOnce(Uri uri) async {
+    final client = _newHttpClient();
     try {
       final request = await client.getUrl(uri);
+      request.headers.set(HttpHeaders.acceptEncodingHeader, 'identity');
+      request.headers.set(HttpHeaders.userAgentHeader, 'jwsongbook/0.1');
       final response = await request.close();
       _throwIfFailed(uri, response);
       return response.transform(utf8.decoder).join();
@@ -111,12 +122,28 @@ class SongDownloadService {
     required File target,
     SongDownloadProgressCallback? onProgress,
   }) async {
-    final client = HttpClient();
+    await _withRetries(
+      () => _downloadToFileOnce(
+        uri: uri,
+        target: target,
+        onProgress: onProgress,
+      ),
+    );
+  }
+
+  Future<void> _downloadToFileOnce({
+    required Uri uri,
+    required File target,
+    SongDownloadProgressCallback? onProgress,
+  }) async {
+    final client = _newHttpClient();
     final tempFile = File('${target.path}.part');
 
     try {
       await target.parent.create(recursive: true);
       final request = await client.getUrl(uri);
+      request.headers.set(HttpHeaders.acceptEncodingHeader, 'identity');
+      request.headers.set(HttpHeaders.userAgentHeader, 'jwsongbook/0.1');
       final response = await request.close();
       _throwIfFailed(uri, response);
 
@@ -150,6 +177,36 @@ class SongDownloadService {
         await tempFile.delete();
       }
     }
+  }
+
+  HttpClient _newHttpClient() {
+    return HttpClient()..connectionTimeout = _connectionTimeout;
+  }
+
+  Future<T> _withRetries<T>(Future<T> Function() action) async {
+    Object? lastError;
+    StackTrace? lastStackTrace;
+
+    for (var attempt = 1; attempt <= _maxAttempts; attempt++) {
+      try {
+        return await action();
+      } catch (error, stackTrace) {
+        lastError = error;
+        lastStackTrace = stackTrace;
+        if (attempt == _maxAttempts || !_isRetryable(error)) {
+          Error.throwWithStackTrace(error, stackTrace);
+        }
+        await Future<void>.delayed(_retryDelay * attempt);
+      }
+    }
+
+    Error.throwWithStackTrace(lastError!, lastStackTrace!);
+  }
+
+  bool _isRetryable(Object error) {
+    return error is SocketException ||
+        error is TimeoutException ||
+        error is HttpException;
   }
 
   void _throwIfFailed(Uri uri, HttpClientResponse response) {
