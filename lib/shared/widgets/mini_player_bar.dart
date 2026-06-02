@@ -45,13 +45,35 @@ class MiniPlayerBar extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Thin progress bar along the top edge.
-            LinearProgressIndicator(
-              value: progress.clamp(0.0, 1.0),
-              minHeight: 2,
-              backgroundColor: AppColors.divider,
-              valueColor:
-                  const AlwaysStoppedAnimation<Color>(AppColors.primaryPurple),
+            SizedBox(
+              height: 12,
+              child: SliderTheme(
+                data: SliderTheme.of(context).copyWith(
+                  trackHeight: 2,
+                  activeTrackColor: AppColors.primaryPurple,
+                  inactiveTrackColor: AppColors.divider,
+                  thumbColor: AppColors.primaryPurple,
+                  overlayColor: AppColors.primaryPurple.withAlpha(28),
+                  thumbShape: const RoundSliderThumbShape(
+                    enabledThumbRadius: 4,
+                    disabledThumbRadius: 0,
+                  ),
+                  overlayShape: const RoundSliderOverlayShape(
+                    overlayRadius: 12,
+                  ),
+                ),
+                child: Slider(
+                  value: progress.clamp(0.0, 1.0),
+                  onChanged: playerState.duration > Duration.zero
+                      ? (value) {
+                          notifier.seekMs(
+                            (value * playerState.duration.inMilliseconds)
+                                .round(),
+                          );
+                        }
+                      : null,
+                ),
+              ),
             ),
             Expanded(
               child: Padding(
