@@ -21,9 +21,13 @@ class FloatingLyricsButton extends ConsumerStatefulWidget {
 
 class _FloatingLyricsButtonState extends ConsumerState<FloatingLyricsButton> {
   Offset? _position;
+  bool _isPanelOpen = false;
 
   static const double _buttonSize = 52;
   static const double _edgePadding = 16;
+  static const double _panelGap = 10;
+  static const double _panelPreferredWidth = 320;
+  static const double _panelEstimatedHeight = 300;
 
   @override
   Widget build(BuildContext context) {
@@ -49,9 +53,38 @@ class _FloatingLyricsButtonState extends ConsumerState<FloatingLyricsButton> {
               maxX,
               maxY,
             );
+            final isRightSide =
+                position.dx + (_buttonSize / 2) >= constraints.maxWidth / 2;
+            final panelWidth = (constraints.maxWidth -
+                    _buttonSize -
+                    (_edgePadding * 3) -
+                    _panelGap)
+                .clamp(220.0, _panelPreferredWidth);
+            final panelPosition = _panelPosition(
+              buttonPosition: position,
+              isRightSide: isRightSide,
+              panelWidth: panelWidth,
+              maxWidth: constraints.maxWidth,
+              maxHeight: constraints.maxHeight,
+            );
 
             return Stack(
               children: [
+                if (_isPanelOpen)
+                  Positioned.fill(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => setState(() => _isPanelOpen = false),
+                      child: const SizedBox.expand(),
+                    ),
+                  ),
+                if (_isPanelOpen)
+                  Positioned(
+                    left: panelPosition.dx,
+                    top: panelPosition.dy,
+                    width: panelWidth,
+                    child: const _FloatingLyricsPanel(),
+                  ),
                 Positioned(
                   left: position.dx,
                   top: position.dy,
@@ -65,6 +98,14 @@ class _FloatingLyricsButtonState extends ConsumerState<FloatingLyricsButton> {
                         );
                       });
                     },
+                    onPanEnd: (_) {
+                      setState(() {
+                        _position = Offset(
+                          isRightSide ? maxX : _edgePadding,
+                          position.dy,
+                        );
+                      });
+                    },
                     child: SizedBox(
                       width: _buttonSize,
                       height: _buttonSize,
@@ -72,7 +113,9 @@ class _FloatingLyricsButtonState extends ConsumerState<FloatingLyricsButton> {
                         heroTag: 'floating-lyrics-button',
                         mini: true,
                         tooltip: 'Show lyrics',
-                        onPressed: () => _showLyricsPanel(context),
+                        onPressed: () {
+                          setState(() => _isPanelOpen = !_isPanelOpen);
+                        },
                         child: Text(
                           song.paddedNumber,
                           style: AppTypography.songNumber.copyWith(
@@ -99,19 +142,30 @@ class _FloatingLyricsButtonState extends ConsumerState<FloatingLyricsButton> {
     );
   }
 
-  void _showLyricsPanel(BuildContext context) {
-    showModalBottomSheet<void>(
-      context: context,
-      useSafeArea: true,
-      showDragHandle: true,
-      backgroundColor: AppColors.surfaceElevated,
-      builder: (_) => const _CompactLyricsPanel(),
+  Offset _panelPosition({
+    required Offset buttonPosition,
+    required bool isRightSide,
+    required double panelWidth,
+    required double maxWidth,
+    required double maxHeight,
+  }) {
+    final x = isRightSide
+        ? buttonPosition.dx - panelWidth - _panelGap
+        : buttonPosition.dx + _buttonSize + _panelGap;
+    final y = (buttonPosition.dy - 86).clamp(
+      _edgePadding,
+      maxHeight - _panelEstimatedHeight - _edgePadding,
+    );
+
+    return Offset(
+      x.clamp(_edgePadding, maxWidth - panelWidth - _edgePadding),
+      y,
     );
   }
 }
 
-class _CompactLyricsPanel extends ConsumerWidget {
-  const _CompactLyricsPanel();
+class _FloatingLyricsPanel extends ConsumerWidget {
+  const _FloatingLyricsPanel();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -125,29 +179,43 @@ class _CompactLyricsPanel extends ConsumerWidget {
     final lyricsAsync = ref.watch(currentSongLyricsProvider);
     final cursor = ref.watch(syncCursorProvider);
 
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 0, 18, 18),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _PanelHeader(song: song),
-          const SizedBox(height: 18),
-          lyricsAsync.when(
-            loading: () => const SizedBox(
-              height: 120,
-              child: Center(child: CircularProgressIndicator()),
-            ),
-            error: (e, _) => _EmptyLyricsPreview(message: e.toString()),
-            data: (lyrics) => _LyricsPreview(
-              lyrics: lyrics,
-              cursor: cursor,
-              isPlaying: playerState.isPlaying && !playerState.isCompleted,
-            ),
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceElevated,
+        border: Border.all(color: AppColors.divider),
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(120),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
           ),
-          const SizedBox(height: 18),
-          _PanelActions(playerState: playerState),
         ],
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _PanelHeader(song: song),
+            const SizedBox(height: 14),
+            lyricsAsync.when(
+              loading: () => const SizedBox(
+                height: 96,
+                child: Center(child: CircularProgressIndicator()),
+              ),
+              error: (e, _) => _EmptyLyricsPreview(message: e.toString()),
+              data: (lyrics) => _LyricsPreview(
+                lyrics: lyrics,
+                cursor: cursor,
+                positionMs: playerState.positionMs,
+              ),
+            ),
+            const SizedBox(height: 14),
+            _PanelActions(playerState: playerState),
+          ],
+        ),
       ),
     );
   }
@@ -197,12 +265,12 @@ class _LyricsPreview extends StatelessWidget {
   const _LyricsPreview({
     required this.lyrics,
     required this.cursor,
-    required this.isPlaying,
+    required this.positionMs,
   });
 
   final SyncedLyrics lyrics;
   final SyncCursor cursor;
-  final bool isPlaying;
+  final int positionMs;
 
   @override
   Widget build(BuildContext context) {
@@ -213,7 +281,11 @@ class _LyricsPreview extends StatelessWidget {
     }
 
     if (cursor.lineIndex < 0) {
-      return _WaitingLyricsPreview(isAnimated: isPlaying);
+      final nextLine = _nextLineAfter(positionMs);
+      if (nextLine == null) {
+        return const _EmptyLyricsPreview(message: 'Waiting for lyrics');
+      }
+      return _UpcomingLyricPreview(line: nextLine);
     }
 
     final previewLines = lyrics.lines.skip(cursor.lineIndex).take(3).toList();
@@ -243,12 +315,19 @@ class _LyricsPreview extends StatelessWidget {
       }),
     );
   }
+
+  SyncedLine? _nextLineAfter(int positionMs) {
+    for (final line in lyrics.lines) {
+      if (line.startMs > positionMs) return line;
+    }
+    return null;
+  }
 }
 
-class _WaitingLyricsPreview extends StatelessWidget {
-  const _WaitingLyricsPreview({required this.isAnimated});
+class _UpcomingLyricPreview extends StatelessWidget {
+  const _UpcomingLyricPreview({required this.line});
 
-  final bool isAnimated;
+  final SyncedLine line;
 
   @override
   Widget build(BuildContext context) {
@@ -260,76 +339,16 @@ class _WaitingLyricsPreview extends StatelessWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 22),
-        child: Center(
-          child: isAnimated
-              ? const _AnimatedDots()
-              : Text(
-                  'Waiting for lyrics',
-                  style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.textMedium,
-                  ),
-                ),
+        child: Text(
+          line.text,
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
+          style: AppTypography.lyricsActive.copyWith(
+            color: AppColors.textMedium,
+            fontSize: 22,
+          ),
         ),
       ),
-    );
-  }
-}
-
-class _AnimatedDots extends StatefulWidget {
-  const _AnimatedDots();
-
-  @override
-  State<_AnimatedDots> createState() => _AnimatedDotsState();
-}
-
-class _AnimatedDotsState extends State<_AnimatedDots>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 900),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, _) {
-        final activeDot = (_controller.value * 3).floor().clamp(0, 2);
-
-        return Row(
-          mainAxisSize: MainAxisSize.min,
-          children: List.generate(3, (index) {
-            final isActive = index == activeDot;
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: AnimatedOpacity(
-                duration: const Duration(milliseconds: 160),
-                opacity: isActive ? 1 : 0.35,
-                child: Text(
-                  '.',
-                  style: AppTypography.lyricsActive.copyWith(
-                    color: AppColors.primaryPurple,
-                    fontSize: 34,
-                    height: 1,
-                  ),
-                ),
-              ),
-            );
-          }),
-        );
-      },
     );
   }
 }
