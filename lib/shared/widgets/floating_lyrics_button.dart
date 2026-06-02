@@ -11,11 +11,22 @@ import 'package:jwsongbook/data/models/synced_lyrics_model.dart';
 import 'package:jwsongbook/features/player/providers/lyrics_sync_provider.dart';
 import 'package:jwsongbook/features/player/providers/player_provider.dart';
 
-class FloatingLyricsButton extends ConsumerWidget {
+class FloatingLyricsButton extends ConsumerStatefulWidget {
   const FloatingLyricsButton({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FloatingLyricsButton> createState() =>
+      _FloatingLyricsButtonState();
+}
+
+class _FloatingLyricsButtonState extends ConsumerState<FloatingLyricsButton> {
+  Offset? _position;
+
+  static const double _buttonSize = 52;
+  static const double _edgePadding = 16;
+
+  @override
+  Widget build(BuildContext context) {
     final song = ref.watch(
       playerNotifierProvider.select((state) => state.currentSong),
     );
@@ -25,18 +36,66 @@ class FloatingLyricsButton extends ConsumerWidget {
       return const SizedBox.shrink();
     }
 
-    return FloatingActionButton(
-      heroTag: 'floating-lyrics-button',
-      mini: true,
-      tooltip: 'Show lyrics',
-      onPressed: () => _showLyricsPanel(context),
-      child: Text(
-        song.paddedNumber,
-        style: AppTypography.songNumber.copyWith(
-          color: AppColors.background,
-          fontWeight: FontWeight.w800,
+    return Positioned.fill(
+      child: IgnorePointer(
+        ignoring: false,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final maxX = constraints.maxWidth - _buttonSize - _edgePadding;
+            final maxY = constraints.maxHeight - _buttonSize - _edgePadding;
+            final defaultPosition = Offset(maxX, maxY);
+            final position = _clampPosition(
+              _position ?? defaultPosition,
+              maxX,
+              maxY,
+            );
+
+            return Stack(
+              children: [
+                Positioned(
+                  left: position.dx,
+                  top: position.dy,
+                  child: GestureDetector(
+                    onPanUpdate: (details) {
+                      setState(() {
+                        _position = _clampPosition(
+                          position + details.delta,
+                          maxX,
+                          maxY,
+                        );
+                      });
+                    },
+                    child: SizedBox(
+                      width: _buttonSize,
+                      height: _buttonSize,
+                      child: FloatingActionButton(
+                        heroTag: 'floating-lyrics-button',
+                        mini: true,
+                        tooltip: 'Show lyrics',
+                        onPressed: () => _showLyricsPanel(context),
+                        child: Text(
+                          song.paddedNumber,
+                          style: AppTypography.songNumber.copyWith(
+                            color: AppColors.background,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
+    );
+  }
+
+  Offset _clampPosition(Offset value, double maxX, double maxY) {
+    return Offset(
+      value.dx.clamp(_edgePadding, maxX),
+      value.dy.clamp(_edgePadding, maxY),
     );
   }
 

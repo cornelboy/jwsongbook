@@ -21,6 +21,8 @@ class SongsRepository {
 
   Stream<List<Song>> watchFavorites() => _dao.watchFavorites();
 
+  Stream<List<Song>> watchRecentlyPlayed() => _dao.watchRecentlyPlayed();
+
   Future<List<Song>> getAllSongs() => _dao.getAll();
 
   Future<Song?> getByNumber(int number) => _dao.getByNumber(number);

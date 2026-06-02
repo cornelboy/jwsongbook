@@ -36,6 +36,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final songsAsync = _query.isEmpty
         ? ref.watch(allSongsProvider)
         : ref.watch(searchSongsProvider(_query));
+    final recentSongsAsync = ref.watch(recentSongsProvider);
     final currentSong =
         ref.watch(playerNotifierProvider.select((s) => s.currentSong));
     final downloadState = ref.watch(downloadControllerProvider);
@@ -95,25 +96,37 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 title: 'No songs found',
                 subtitle: 'Try a different search term.',
               )
-            : ListView.separated(
-                itemCount: songs.length,
+            : ListView(
                 padding: const EdgeInsets.only(bottom: 8),
-                separatorBuilder: (_, __) => const Divider(
-                  height: 1,
-                  color: AppColors.divider,
-                  indent: 72,
-                ),
-                itemBuilder: (context, index) {
-                  final song = songs[index];
-                  return SongCard(
-                    song: song,
-                    isCurrentlyPlaying: currentSong?.id == song.id,
-                    downloadStatus: downloadState.statusFor(song.number),
-                    onTap: () => _playSong(song, context),
-                    onDownloadTap: () => _openDownload(song, context),
-                    onFavoriteTap: () => _toggleFavorite(song),
-                  );
-                },
+                children: [
+                  if (!hasQuery)
+                    _RecentlyPlayedSection(
+                      songsAsync: recentSongsAsync,
+                      currentSong: currentSong,
+                      onSongTap: (song) => _playSong(song, context),
+                    ),
+                  ...List.generate(songs.length, (index) {
+                    final song = songs[index];
+                    return Column(
+                      children: [
+                        if (index > 0 || !hasQuery)
+                          const Divider(
+                            height: 1,
+                            color: AppColors.divider,
+                            indent: 72,
+                          ),
+                        SongCard(
+                          song: song,
+                          isCurrentlyPlaying: currentSong?.id == song.id,
+                          downloadStatus: downloadState.statusFor(song.number),
+                          onTap: () => _playSong(song, context),
+                          onDownloadTap: () => _openDownload(song, context),
+                          onFavoriteTap: () => _toggleFavorite(song),
+                        ),
+                      ],
+                    );
+                  }),
+                ],
               ),
       ),
     );
@@ -170,8 +183,124 @@ class _LibraryStatusLine extends StatelessWidget {
   }
 }
 
+class _RecentlyPlayedSection extends StatelessWidget {
+  const _RecentlyPlayedSection({
+    required this.songsAsync,
+    required this.currentSong,
+    required this.onSongTap,
+  });
+
+  final AsyncValue<List<Song>> songsAsync;
+  final Song? currentSong;
+  final void Function(Song song) onSongTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return songsAsync.maybeWhen(
+      data: (songs) {
+        if (songs.isEmpty) return const SizedBox.shrink();
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 6, 0, 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Recently Played',
+                style: AppTypography.caption.copyWith(
+                  color: AppColors.textHigh,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 92,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: songs.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 10),
+                  itemBuilder: (context, index) {
+                    final song = songs[index];
+                    return _RecentSongTile(
+                      song: song,
+                      isActive: currentSong?.id == song.id,
+                      onTap: () => onSongTap(song),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+      orElse: () => const SizedBox.shrink(),
+    );
+  }
+}
+
+class _RecentSongTile extends StatelessWidget {
+  const _RecentSongTile({
+    required this.song,
+    required this.isActive,
+    required this.onTap,
+  });
+
+  final Song song;
+  final bool isActive;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        width: 172,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: isActive
+              ? AppColors.primaryPurple.withAlpha(26)
+              : AppColors.surfaceElevated,
+          border: Border.all(
+            color: isActive
+                ? AppColors.primaryPurple.withAlpha(110)
+                : AppColors.divider,
+          ),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              song.paddedNumber,
+              style: AppTypography.songNumber.copyWith(
+                color:
+                    isActive ? AppColors.primaryPurple : AppColors.textMedium,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              song.title,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.bodyMedium.copyWith(
+                color: isActive ? AppColors.primaryPurple : AppColors.textHigh,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 final allSongsProvider = StreamProvider<List<Song>>(
   (ref) => ref.watch(songsRepositoryProvider).watchAll(),
+);
+
+final recentSongsProvider = StreamProvider<List<Song>>(
+  (ref) => ref.watch(songsRepositoryProvider).watchRecentlyPlayed(),
 );
 
 final searchSongsProvider = StreamProvider.family<List<Song>, String>(

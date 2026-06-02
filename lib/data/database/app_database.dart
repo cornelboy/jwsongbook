@@ -41,6 +41,12 @@ class SongsDao extends DatabaseAccessor<AppDatabase> with _$SongsDaoMixin {
         ..orderBy([(s) => OrderingTerm.asc(s.number)]))
       .watch();
 
+  Stream<List<Song>> watchRecentlyPlayed({int limit = 5}) => (select(songs)
+        ..where((s) => s.lastPlayedAt.isNotNull())
+        ..orderBy([(s) => OrderingTerm.desc(s.lastPlayedAt)])
+        ..limit(limit))
+      .watch();
+
   Future<List<Song>> getAll() =>
       (select(songs)..orderBy([(s) => OrderingTerm.asc(s.number)])).get();
 

@@ -6,6 +6,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 import 'package:jwsongbook/core/constants/app_constants.dart';
 import 'package:jwsongbook/data/database/app_database.dart';
+import 'package:jwsongbook/data/models/song_model.dart';
 import 'package:jwsongbook/data/repositories/songs_repository.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -29,6 +30,7 @@ class PlayerState {
     this.position = Duration.zero,
     this.duration = Duration.zero,
     this.processingState = ProcessingState.idle,
+    this.repeatMode = PlaybackRepeatMode.off,
     this.isLoading = false,
     this.error,
   });
@@ -38,6 +40,7 @@ class PlayerState {
   final Duration position;
   final Duration duration;
   final ProcessingState processingState;
+  final PlaybackRepeatMode repeatMode;
   final bool isLoading;
   final String? error;
 
@@ -53,6 +56,7 @@ class PlayerState {
     Duration? position,
     Duration? duration,
     ProcessingState? processingState,
+    PlaybackRepeatMode? repeatMode,
     bool? isLoading,
     String? error,
   }) =>
@@ -62,15 +66,29 @@ class PlayerState {
         position: position ?? this.position,
         duration: duration ?? this.duration,
         processingState: processingState ?? this.processingState,
+        repeatMode: repeatMode ?? this.repeatMode,
         isLoading: isLoading ?? this.isLoading,
         error: error,
       );
+}
+
+enum PlaybackRepeatMode {
+  off,
+  one,
+  all;
+
+  PlaybackRepeatMode get next => switch (this) {
+        PlaybackRepeatMode.off => PlaybackRepeatMode.one,
+        PlaybackRepeatMode.one => PlaybackRepeatMode.all,
+        PlaybackRepeatMode.all => PlaybackRepeatMode.off,
+      };
 }
 
 @Riverpod(keepAlive: true)
 class PlayerNotifier extends _$PlayerNotifier {
   late AudioPlayer _player;
   late SongsRepository _repo;
+  bool _isHandlingCompletion = false;
 
   @override
   PlayerState build() {
@@ -94,6 +112,9 @@ class PlayerNotifier extends _$PlayerNotifier {
           isLoading: processingState == ProcessingState.loading ||
               processingState == ProcessingState.buffering,
         );
+        if (processingState == ProcessingState.completed) {
+          unawaited(_handlePlaybackCompleted());
+        }
       }),
     ];
 
@@ -174,9 +195,19 @@ class PlayerNotifier extends _$PlayerNotifier {
   Future<void> playNext() async {
     final current = state.currentSong;
     if (current == null) return;
-    final all = await _repo.getAllSongs();
+    final all = await _getPlayableSongs();
     final idx = all.indexWhere((s) => s.id == current.id);
-    if (idx >= 0 && idx < all.length - 1) await playSong(all[idx + 1]);
+    if (idx >= 0 && idx < all.length - 1) {
+      await playSong(all[idx + 1]);
+    } else if (state.repeatMode == PlaybackRepeatMode.all && all.isNotEmpty) {
+      final nextSong = all.first;
+      if (nextSong.id == current.id) {
+        await _player.seek(Duration.zero);
+        await _player.play();
+      } else {
+        await playSong(nextSong);
+      }
+    }
   }
 
   Future<void> playPrevious() async {
@@ -187,9 +218,43 @@ class PlayerNotifier extends _$PlayerNotifier {
       await _player.seek(Duration.zero);
       return;
     }
-    final all = await _repo.getAllSongs();
+    final all = await _getPlayableSongs();
     final idx = all.indexWhere((s) => s.id == current.id);
-    if (idx > 0) await playSong(all[idx - 1]);
+    if (idx > 0) {
+      await playSong(all[idx - 1]);
+    } else if (state.repeatMode == PlaybackRepeatMode.all && all.isNotEmpty) {
+      await playSong(all.last);
+    }
+  }
+
+  void toggleRepeatMode() {
+    state = state.copyWith(repeatMode: state.repeatMode.next);
+  }
+
+  Future<List<Song>> _getPlayableSongs() async {
+    final all = await _repo.getAllSongs();
+    return all.where((song) => song.hasLocalAudio).toList();
+  }
+
+  Future<void> _handlePlaybackCompleted() async {
+    if (_isHandlingCompletion) return;
+    _isHandlingCompletion = true;
+
+    try {
+      switch (state.repeatMode) {
+        case PlaybackRepeatMode.off:
+          break;
+        case PlaybackRepeatMode.one:
+          await _player.seek(Duration.zero);
+          await _player.play();
+          break;
+        case PlaybackRepeatMode.all:
+          await playNext();
+          break;
+      }
+    } finally {
+      _isHandlingCompletion = false;
+    }
   }
 
   Future<void> stop() async {

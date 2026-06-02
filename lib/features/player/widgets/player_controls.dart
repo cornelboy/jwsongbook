@@ -104,6 +104,11 @@ class PlayerControls extends ConsumerWidget {
                   ),
                 ],
               ),
+              const SizedBox(height: 4),
+              _RepeatModeButton(
+                repeatMode: state.repeatMode,
+                onPressed: state.hasSong ? notifier.toggleRepeatMode : null,
+              ),
             ],
           ),
         ),
@@ -120,6 +125,39 @@ class PlayerControls extends ConsumerWidget {
     final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
     final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
     return '$m:$s';
+  }
+}
+
+class _RepeatModeButton extends StatelessWidget {
+  const _RepeatModeButton({
+    required this.repeatMode,
+    required this.onPressed,
+  });
+
+  final PlaybackRepeatMode repeatMode;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final isActive = repeatMode != PlaybackRepeatMode.off;
+    final (icon, label) = switch (repeatMode) {
+      PlaybackRepeatMode.off => (Icons.repeat, 'Repeat off'),
+      PlaybackRepeatMode.one => (Icons.repeat_one, 'Repeat song'),
+      PlaybackRepeatMode.all => (Icons.repeat, 'Repeat all'),
+    };
+
+    return TextButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 18),
+      label: Text(label),
+      style: TextButton.styleFrom(
+        foregroundColor:
+            isActive ? AppColors.primaryPurple : AppColors.textMedium,
+        textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        minimumSize: const Size(0, 32),
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+      ),
+    );
   }
 }
 

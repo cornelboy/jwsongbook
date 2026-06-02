@@ -52,8 +52,12 @@ class ScaffoldWithBottomNav extends ConsumerWidget {
     final currentIndex = _currentIndex(context);
 
     return Scaffold(
-      body: child,
-      floatingActionButton: const FloatingLyricsButton(),
+      body: Stack(
+        children: [
+          child,
+          const FloatingLyricsButton(),
+        ],
+      ),
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
