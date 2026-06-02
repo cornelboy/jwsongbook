@@ -36,12 +36,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         : ref.watch(searchSongsProvider(_query));
     final currentSong =
         ref.watch(playerNotifierProvider.select((s) => s.currentSong));
+    final hasQuery = _query.isNotEmpty;
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Kingdom Songs'),
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(64),
+          preferredSize: const Size.fromHeight(104),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(
               AppConstants.screenPaddingH,
@@ -49,15 +50,31 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               AppConstants.screenPaddingH,
               12,
             ),
-            child: TextField(
-              controller: _searchController,
-              onChanged: (v) => setState(() => _query = v.trim()),
-              style: AppTypography.bodyLarge,
-              decoration: const InputDecoration(
-                hintText: 'Search by number or title…',
-                prefixIcon: Icon(Icons.search, color: AppColors.textMedium),
-                suffixIcon: null,
-              ),
+            child: Column(
+              children: [
+                TextField(
+                  controller: _searchController,
+                  onChanged: (v) => setState(() => _query = v.trim()),
+                  style: AppTypography.bodyLarge,
+                  decoration: InputDecoration(
+                    hintText: 'Search number or title',
+                    prefixIcon: const Icon(
+                      Icons.search,
+                      color: AppColors.textMedium,
+                    ),
+                    suffixIcon: hasQuery
+                        ? IconButton(
+                            icon: const Icon(Icons.close),
+                            color: AppColors.textMedium,
+                            tooltip: 'Clear search',
+                            onPressed: _clearSearch,
+                          )
+                        : null,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                _LibraryStatusLine(query: _query, songsAsync: songsAsync),
+              ],
             ),
           ),
         ),
@@ -77,6 +94,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               )
             : ListView.separated(
                 itemCount: songs.length,
+                padding: const EdgeInsets.only(bottom: 8),
                 separatorBuilder: (_, __) => const Divider(
                   height: 1,
                   color: AppColors.divider,
@@ -96,6 +114,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     );
   }
 
+  void _clearSearch() {
+    _searchController.clear();
+    setState(() => _query = '');
+  }
+
   void _playSong(Song song, BuildContext context) {
     ref.read(playerNotifierProvider.notifier).playSong(song);
     context.go(AppRoutes.nowPlaying);
@@ -106,10 +129,36 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 }
 
-// ── Providers ─────────────────────────────────────────────────────────────────
+class _LibraryStatusLine extends StatelessWidget {
+  const _LibraryStatusLine({required this.query, required this.songsAsync});
 
-final allSongsProvider =
-    StreamProvider<List<Song>>((ref) => ref.watch(songsRepositoryProvider).watchAll());
+  final String query;
+  final AsyncValue<List<Song>> songsAsync;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = songsAsync.maybeWhen(
+      data: (songs) {
+        final label = songs.length == 1 ? 'song' : 'songs';
+        if (query.isEmpty) return '${songs.length} $label';
+        return '${songs.length} found for "$query"';
+      },
+      orElse: () => ' ',
+    );
+
+    return Row(
+      children: [
+        const Icon(Icons.library_music_outlined, size: 16),
+        const SizedBox(width: 6),
+        Text(text, style: AppTypography.caption),
+      ],
+    );
+  }
+}
+
+final allSongsProvider = StreamProvider<List<Song>>(
+  (ref) => ref.watch(songsRepositoryProvider).watchAll(),
+);
 
 final searchSongsProvider = StreamProvider.family<List<Song>, String>(
   (ref, query) => ref.watch(songsRepositoryProvider).watchSearch(query),
