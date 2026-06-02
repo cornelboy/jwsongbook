@@ -23,9 +23,10 @@ class _FloatingLyricsButtonState extends ConsumerState<FloatingLyricsButton> {
   Offset? _position;
   bool _isPanelOpen = false;
   bool _isDragging = false;
+  bool _isButtonPressed = false;
 
-  static const double _buttonSize = 52;
-  static const double _touchSize = 88;
+  static const double _buttonSize = 60;
+  static const double _touchSize = 110;
   static const double _edgePadding = 16;
   static const double _panelGap = 10;
   static const double _panelPreferredWidth = 300;
@@ -97,8 +98,23 @@ class _FloatingLyricsButtonState extends ConsumerState<FloatingLyricsButton> {
                   top: position.dy - ((_touchSize - _buttonSize) / 2),
                   child: GestureDetector(
                     behavior: HitTestBehavior.translucent,
+                    onTap: () {
+                      setState(() => _isPanelOpen = !_isPanelOpen);
+                    },
+                    onTapDown: (_) {
+                      setState(() => _isButtonPressed = true);
+                    },
+                    onTapUp: (_) {
+                      setState(() => _isButtonPressed = false);
+                    },
+                    onTapCancel: () {
+                      setState(() => _isButtonPressed = false);
+                    },
                     onPanStart: (_) {
-                      setState(() => _isDragging = true);
+                      setState(() {
+                        _isDragging = true;
+                        _isButtonPressed = false;
+                      });
                     },
                     onPanUpdate: (details) {
                       setState(() {
@@ -125,22 +141,15 @@ class _FloatingLyricsButtonState extends ConsumerState<FloatingLyricsButton> {
                       width: _touchSize,
                       height: _touchSize,
                       child: Center(
-                        child: SizedBox(
-                          width: _buttonSize,
-                          height: _buttonSize,
-                          child: FloatingActionButton(
-                            heroTag: 'floating-lyrics-button',
-                            mini: true,
-                            tooltip: 'Show lyrics',
-                            onPressed: () {
-                              setState(() => _isPanelOpen = !_isPanelOpen);
-                            },
-                            child: Text(
-                              song.paddedNumber,
-                              style: AppTypography.songNumber.copyWith(
-                                color: AppColors.background,
-                                fontWeight: FontWeight.w800,
-                              ),
+                        child: Tooltip(
+                          message: 'Show lyrics',
+                          child: AnimatedScale(
+                            scale: _isButtonPressed ? 0.94 : 1,
+                            duration: const Duration(milliseconds: 120),
+                            curve: Curves.easeOutCubic,
+                            child: _FloatingLyricsIcon(
+                              isOpen: _isPanelOpen,
+                              isDragging: _isDragging,
                             ),
                           ),
                         ),
@@ -181,6 +190,51 @@ class _FloatingLyricsButtonState extends ConsumerState<FloatingLyricsButton> {
     return Offset(
       x.clamp(_edgePadding, maxWidth - panelWidth - _edgePadding),
       y,
+    );
+  }
+}
+
+class _FloatingLyricsIcon extends StatelessWidget {
+  const _FloatingLyricsIcon({
+    required this.isOpen,
+    required this.isDragging,
+  });
+
+  final bool isOpen;
+  final bool isDragging;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
+      curve: Curves.easeOutCubic,
+      width: _FloatingLyricsButtonState._buttonSize,
+      height: _FloatingLyricsButtonState._buttonSize,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: AppColors.primaryPurple,
+        border: Border.all(
+          color: isOpen ? Colors.white.withAlpha(190) : Colors.transparent,
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primaryPurple.withAlpha(isDragging ? 95 : 70),
+            blurRadius: isDragging ? 22 : 16,
+            offset: const Offset(0, 8),
+          ),
+          BoxShadow(
+            color: Colors.black.withAlpha(90),
+            blurRadius: 12,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: const Icon(
+        Icons.lyrics_outlined,
+        color: AppColors.background,
+        size: 28,
+      ),
     );
   }
 }
