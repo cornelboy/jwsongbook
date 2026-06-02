@@ -2,10 +2,9 @@ import 'dart:io';
 
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
+import 'package:jwsongbook/data/database/tables/songs_table.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
-
-import 'tables/songs_table.dart';
 
 part 'app_database.g.dart';
 
@@ -46,8 +45,7 @@ class SongsDao extends DatabaseAccessor<AppDatabase> with _$SongsDaoMixin {
       (select(songs)..orderBy([(s) => OrderingTerm.asc(s.number)])).get();
 
   Future<Song?> getByNumber(int number) =>
-      (select(songs)..where((s) => s.number.equals(number)))
-          .getSingleOrNull();
+      (select(songs)..where((s) => s.number.equals(number))).getSingleOrNull();
 
   Future<void> upsert(SongsCompanion entry) =>
       into(songs).insertOnConflictUpdate(entry);
@@ -67,24 +65,24 @@ class SongsDao extends DatabaseAccessor<AppDatabase> with _$SongsDaoMixin {
       );
 }
 
-@DriftAccessor(include: {'package:jwsongbook/data/database/lyrics_tables.drift'})
+@DriftAccessor(
+  include: {'package:jwsongbook/data/database/lyrics_tables.drift'},
+)
 class LyricsDao extends DatabaseAccessor<AppDatabase> with _$LyricsDaoMixin {
   LyricsDao(super.db);
 
   /// Fetch all lines for [songId], ordered by [lineIndex].
   /// Returns an empty list if no lyrics exist.
-  Future<List<LyricsLine>> getLinesForSong(int songId) =>
-      (select(lyricsLines)
-            ..where((l) => l.songId.equals(songId))
-            ..orderBy([(l) => OrderingTerm.asc(l.lineIndex)]))
-          .get();
+  Future<List<LyricsLine>> getLinesForSong(int songId) => (select(lyricsLines)
+        ..where((l) => l.songId.equals(songId))
+        ..orderBy([(l) => OrderingTerm.asc(l.lineIndex)]))
+      .get();
 
   /// Fetch all words for [lineId], ordered by [wordIndex].
-  Future<List<LyricsWord>> getWordsForLine(int lineId) =>
-      (select(lyricsWords)
-            ..where((w) => w.lineId.equals(lineId))
-            ..orderBy([(w) => OrderingTerm.asc(w.wordIndex)]))
-          .get();
+  Future<List<LyricsWord>> getWordsForLine(int lineId) => (select(lyricsWords)
+        ..where((w) => w.lineId.equals(lineId))
+        ..orderBy([(w) => OrderingTerm.asc(w.wordIndex)]))
+      .get();
 
   /// Bulk-insert all lines and words for a song. Replaces any existing data.
   Future<void> insertSongLyrics({

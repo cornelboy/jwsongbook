@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:riverpod_annotation/riverpod_annotation.dart';
-
 import 'package:jwsongbook/core/constants/app_constants.dart';
 import 'package:jwsongbook/core/theme/app_colors.dart';
 import 'package:jwsongbook/core/theme/app_typography.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'settings_screen.g.dart';
 
@@ -63,7 +62,7 @@ class SettingsScreen extends ConsumerWidget {
       body: ListView(
         children: [
           // ── Display ──────────────────────────────────────────────────────
-          _SectionHeader('Display'),
+          const _SectionHeader('Display'),
           SwitchListTile(
             title: const Text('Congregation Mode'),
             subtitle: const Text(
@@ -71,7 +70,7 @@ class SettingsScreen extends ConsumerWidget {
             ),
             value: settings.congregationMode,
             onChanged: (_) => notifier.toggleCongregationMode(),
-            activeColor: AppColors.primaryPurple,
+            activeThumbColor: AppColors.primaryPurple,
           ),
           ListTile(
             title: const Text('Font Size'),
@@ -91,22 +90,22 @@ class SettingsScreen extends ConsumerWidget {
             ),
             value: settings.autoScrollEnabled,
             onChanged: (_) => notifier.toggleAutoScroll(),
-            activeColor: AppColors.primaryPurple,
+            activeThumbColor: AppColors.primaryPurple,
           ),
 
           const Divider(height: 32),
 
           // ── About ─────────────────────────────────────────────────────────
-          _SectionHeader('About'),
-          ListTile(
-            title: const Text('Total Songs'),
+          const _SectionHeader('About'),
+          const ListTile(
+            title: Text('Total Songs'),
             trailing: Text(
               '${AppConstants.totalSongs}',
               style: AppTypography.bodyMedium,
             ),
           ),
-          ListTile(
-            title: const Text('Version'),
+          const ListTile(
+            title: Text('Version'),
             trailing: Text('0.1.0', style: AppTypography.bodyMedium),
           ),
         ],

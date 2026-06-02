@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'app_colors.dart';
-import 'app_typography.dart';
+
+import 'package:jwsongbook/core/theme/app_colors.dart';
+import 'package:jwsongbook/core/theme/app_typography.dart';
 
 /// Produces the single [ThemeData] used throughout the app.
 /// The app is dark-only — matching JW Library's aesthetic.
@@ -58,7 +59,10 @@ abstract final class AppTheme {
         }),
         iconTheme: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return const IconThemeData(color: AppColors.primaryPurple, size: 24);
+            return const IconThemeData(
+              color: AppColors.primaryPurple,
+              size: 24,
+            );
           }
           return const IconThemeData(color: AppColors.textMedium, size: 24);
         }),
@@ -84,7 +88,8 @@ abstract final class AppTheme {
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       ),
 
       // ── Icon ──────────────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'app_colors.dart';
+
+import 'package:jwsongbook/core/theme/app_colors.dart';
 
 /// KS-Designer typography system.
 /// All sizes follow the 8dp grid; line heights are 1.4–1.6×.

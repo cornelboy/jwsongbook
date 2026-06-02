@@ -1,13 +1,12 @@
 import 'package:drift/drift.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:riverpod_annotation/riverpod_annotation.dart';
-
 import 'package:jwsongbook/core/constants/app_constants.dart';
 import 'package:jwsongbook/data/database/app_database.dart';
 import 'package:jwsongbook/data/models/synced_lyrics_model.dart';
 import 'package:jwsongbook/data/parsers/elrc_parser.dart';
-import 'songs_repository.dart';
+import 'package:jwsongbook/data/repositories/songs_repository.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'lyrics_repository.g.dart';
 
@@ -38,8 +37,7 @@ class LyricsRepository {
       final parsed = ElrcParser.parse(elrcContent);
       await _persist(song.id, parsed);
       // Mark the song as having synced lyrics.
-      await (_db.update(_db.songs)
-            ..where((s) => s.id.equals(song.id)))
+      await (_db.update(_db.songs)..where((s) => s.id.equals(song.id)))
           .write(const SongsCompanion(hasSyncedLyrics: Value(true)));
       return parsed;
     } catch (_) {
@@ -52,22 +50,24 @@ class LyricsRepository {
     final syncedLines = <SyncedLine>[];
     for (final line in dbLines) {
       final dbWords = await _dao.getWordsForLine(line.id);
-      syncedLines.add(SyncedLine(
-        index: line.lineIndex,
-        startMs: line.startMs,
-        endMs: line.endMs,
-        text: line.lineText,
-        words: dbWords
-            .map(
-              (w) => SyncedWord(
-                index: w.wordIndex,
-                startMs: w.startMs,
-                endMs: w.endMs,
-                text: w.wordText,
-              ),
-            )
-            .toList(),
-      ));
+      syncedLines.add(
+        SyncedLine(
+          index: line.lineIndex,
+          startMs: line.startMs,
+          endMs: line.endMs,
+          text: line.lineText,
+          words: dbWords
+              .map(
+                (w) => SyncedWord(
+                  index: w.wordIndex,
+                  startMs: w.startMs,
+                  endMs: w.endMs,
+                  text: w.wordText,
+                ),
+              )
+              .toList(),
+        ),
+      );
     }
     return SyncedLyrics(lines: syncedLines);
   }

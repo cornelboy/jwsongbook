@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio_background/just_audio_background.dart';
-
-import 'app.dart';
-import 'data/repositories/songs_repository.dart';
+import 'package:jwsongbook/app.dart';
+import 'package:jwsongbook/data/repositories/songs_repository.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

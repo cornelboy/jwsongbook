@@ -1,12 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:riverpod_annotation/riverpod_annotation.dart';
-
 import 'package:jwsongbook/features/favorites/screens/favorites_screen.dart';
 import 'package:jwsongbook/features/library/screens/library_screen.dart';
 import 'package:jwsongbook/features/player/screens/player_screen.dart';
 import 'package:jwsongbook/features/settings/screens/settings_screen.dart';
 import 'package:jwsongbook/shared/widgets/scaffold_with_bottom_nav.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'app_router.g.dart';
 
@@ -28,8 +27,7 @@ GoRouter appRouter(Ref ref) {
     debugLogDiagnostics: true,
     routes: [
       ShellRoute(
-        builder: (context, state, child) =>
-            ScaffoldWithBottomNav(child: child),
+        builder: (context, state, child) => ScaffoldWithBottomNav(child: child),
         routes: [
           GoRoute(
             path: AppRoutes.library,

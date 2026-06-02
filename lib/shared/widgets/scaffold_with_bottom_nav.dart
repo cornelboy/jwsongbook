@@ -12,14 +12,30 @@ class ScaffoldWithBottomNav extends ConsumerWidget {
   final Widget child;
 
   static const _tabs = [
-    _Tab(label: 'Songs', icon: Icons.library_music_outlined,
-        activeIcon: Icons.library_music, route: AppRoutes.library),
-    _Tab(label: 'Favorites', icon: Icons.favorite_outline,
-        activeIcon: Icons.favorite, route: AppRoutes.favorites),
-    _Tab(label: 'Now Playing', icon: Icons.queue_music_outlined,
-        activeIcon: Icons.queue_music, route: AppRoutes.nowPlaying),
-    _Tab(label: 'Settings', icon: Icons.settings_outlined,
-        activeIcon: Icons.settings, route: AppRoutes.settings),
+    _Tab(
+      label: 'Songs',
+      icon: Icons.library_music_outlined,
+      activeIcon: Icons.library_music,
+      route: AppRoutes.library,
+    ),
+    _Tab(
+      label: 'Favorites',
+      icon: Icons.favorite_outline,
+      activeIcon: Icons.favorite,
+      route: AppRoutes.favorites,
+    ),
+    _Tab(
+      label: 'Now Playing',
+      icon: Icons.queue_music_outlined,
+      activeIcon: Icons.queue_music,
+      route: AppRoutes.nowPlaying,
+    ),
+    _Tab(
+      label: 'Settings',
+      icon: Icons.settings_outlined,
+      activeIcon: Icons.settings,
+      route: AppRoutes.settings,
+    ),
   ];
 
   int _currentIndex(BuildContext context) {
