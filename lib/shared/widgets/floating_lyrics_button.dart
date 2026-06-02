@@ -142,6 +142,7 @@ class _CompactLyricsPanel extends ConsumerWidget {
             data: (lyrics) => _LyricsPreview(
               lyrics: lyrics,
               cursor: cursor,
+              isPlaying: playerState.isPlaying && !playerState.isCompleted,
             ),
           ),
           const SizedBox(height: 18),
@@ -193,10 +194,15 @@ class _PanelHeader extends StatelessWidget {
 }
 
 class _LyricsPreview extends StatelessWidget {
-  const _LyricsPreview({required this.lyrics, required this.cursor});
+  const _LyricsPreview({
+    required this.lyrics,
+    required this.cursor,
+    required this.isPlaying,
+  });
 
   final SyncedLyrics lyrics;
   final SyncCursor cursor;
+  final bool isPlaying;
 
   @override
   Widget build(BuildContext context) {
@@ -206,8 +212,11 @@ class _LyricsPreview extends StatelessWidget {
       );
     }
 
-    final activeIndex = cursor.lineIndex >= 0 ? cursor.lineIndex : 0;
-    final previewLines = lyrics.lines.skip(activeIndex).take(3).toList();
+    if (cursor.lineIndex < 0) {
+      return _WaitingLyricsPreview(isAnimated: isPlaying);
+    }
+
+    final previewLines = lyrics.lines.skip(cursor.lineIndex).take(3).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -232,6 +241,95 @@ class _LyricsPreview extends StatelessWidget {
           ),
         );
       }),
+    );
+  }
+}
+
+class _WaitingLyricsPreview extends StatelessWidget {
+  const _WaitingLyricsPreview({required this.isAnimated});
+
+  final bool isAnimated;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: AppColors.card,
+        border: Border.all(color: AppColors.divider),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 22),
+        child: Center(
+          child: isAnimated
+              ? const _AnimatedDots()
+              : Text(
+                  'Waiting for lyrics',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textMedium,
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AnimatedDots extends StatefulWidget {
+  const _AnimatedDots();
+
+  @override
+  State<_AnimatedDots> createState() => _AnimatedDotsState();
+}
+
+class _AnimatedDotsState extends State<_AnimatedDots>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, _) {
+        final activeDot = (_controller.value * 3).floor().clamp(0, 2);
+
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(3, (index) {
+            final isActive = index == activeDot;
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 160),
+                opacity: isActive ? 1 : 0.35,
+                child: Text(
+                  '.',
+                  style: AppTypography.lyricsActive.copyWith(
+                    color: AppColors.primaryPurple,
+                    fontSize: 34,
+                    height: 1,
+                  ),
+                ),
+              ),
+            );
+          }),
+        );
+      },
     );
   }
 }

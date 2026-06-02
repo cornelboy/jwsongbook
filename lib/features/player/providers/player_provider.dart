@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
@@ -31,6 +32,7 @@ class PlayerState {
     this.duration = Duration.zero,
     this.processingState = ProcessingState.idle,
     this.repeatMode = PlaybackRepeatMode.off,
+    this.isShuffleEnabled = false,
     this.isLoading = false,
     this.error,
   });
@@ -41,6 +43,7 @@ class PlayerState {
   final Duration duration;
   final ProcessingState processingState;
   final PlaybackRepeatMode repeatMode;
+  final bool isShuffleEnabled;
   final bool isLoading;
   final String? error;
 
@@ -57,6 +60,7 @@ class PlayerState {
     Duration? duration,
     ProcessingState? processingState,
     PlaybackRepeatMode? repeatMode,
+    bool? isShuffleEnabled,
     bool? isLoading,
     String? error,
   }) =>
@@ -67,6 +71,7 @@ class PlayerState {
         duration: duration ?? this.duration,
         processingState: processingState ?? this.processingState,
         repeatMode: repeatMode ?? this.repeatMode,
+        isShuffleEnabled: isShuffleEnabled ?? this.isShuffleEnabled,
         isLoading: isLoading ?? this.isLoading,
         error: error,
       );
@@ -88,6 +93,7 @@ enum PlaybackRepeatMode {
 class PlayerNotifier extends _$PlayerNotifier {
   late AudioPlayer _player;
   late SongsRepository _repo;
+  final _random = Random();
   bool _isHandlingCompletion = false;
 
   @override
@@ -196,6 +202,12 @@ class PlayerNotifier extends _$PlayerNotifier {
     final current = state.currentSong;
     if (current == null) return;
     final all = await _getPlayableSongs();
+
+    if (state.isShuffleEnabled) {
+      await _playRandomSong(current, all);
+      return;
+    }
+
     final idx = all.indexWhere((s) => s.id == current.id);
     if (idx >= 0 && idx < all.length - 1) {
       await playSong(all[idx + 1]);
@@ -231,9 +243,28 @@ class PlayerNotifier extends _$PlayerNotifier {
     state = state.copyWith(repeatMode: state.repeatMode.next);
   }
 
+  void toggleShuffle() {
+    state = state.copyWith(isShuffleEnabled: !state.isShuffleEnabled);
+  }
+
   Future<List<Song>> _getPlayableSongs() async {
     final all = await _repo.getAllSongs();
     return all.where((song) => song.hasLocalAudio).toList();
+  }
+
+  Future<void> _playRandomSong(Song current, List<Song> all) async {
+    if (all.isEmpty) return;
+
+    final candidates = all.where((song) => song.id != current.id).toList();
+    if (candidates.isEmpty) {
+      if (state.repeatMode != PlaybackRepeatMode.off) {
+        await _player.seek(Duration.zero);
+        await _player.play();
+      }
+      return;
+    }
+
+    await playSong(candidates[_random.nextInt(candidates.length)]);
   }
 
   Future<void> _handlePlaybackCompleted() async {

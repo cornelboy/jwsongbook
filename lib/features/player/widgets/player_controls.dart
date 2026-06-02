@@ -105,9 +105,19 @@ class PlayerControls extends ConsumerWidget {
                 ],
               ),
               const SizedBox(height: 4),
-              _RepeatModeButton(
-                repeatMode: state.repeatMode,
-                onPressed: state.hasSong ? notifier.toggleRepeatMode : null,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _ShuffleButton(
+                    isEnabled: state.isShuffleEnabled,
+                    onPressed: state.hasSong ? notifier.toggleShuffle : null,
+                  ),
+                  const SizedBox(width: 8),
+                  _RepeatModeButton(
+                    repeatMode: state.repeatMode,
+                    onPressed: state.hasSong ? notifier.toggleRepeatMode : null,
+                  ),
+                ],
               ),
             ],
           ),
@@ -125,6 +135,32 @@ class PlayerControls extends ConsumerWidget {
     final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
     final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
     return '$m:$s';
+  }
+}
+
+class _ShuffleButton extends StatelessWidget {
+  const _ShuffleButton({
+    required this.isEnabled,
+    required this.onPressed,
+  });
+
+  final bool isEnabled;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextButton.icon(
+      onPressed: onPressed,
+      icon: const Icon(Icons.shuffle, size: 18),
+      label: Text(isEnabled ? 'Shuffle on' : 'Shuffle off'),
+      style: TextButton.styleFrom(
+        foregroundColor:
+            isEnabled ? AppColors.primaryPurple : AppColors.textMedium,
+        textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        minimumSize: const Size(0, 32),
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+      ),
+    );
   }
 }
 
