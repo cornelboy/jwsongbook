@@ -30,6 +30,9 @@ class SongsRepository {
 
   Future<void> markPlayed(Song song) => _dao.markPlayed(song.id);
 
+  Future<void> markDownloaded(Song song, {required String audioFilePath}) =>
+      _dao.markDownloaded(song.id, audioFilePath: audioFilePath);
+
   /// Seed the database with all 162 song titles.
   /// Call once on first launch.  No-op if data already exists.
   Future<void> seedIfEmpty() async {

@@ -34,16 +34,19 @@ class LyricsRepository {
     final assetPath = AppConstants.lyricsFileName(song.number);
     try {
       final elrcContent = await rootBundle.loadString(assetPath);
-      final parsed = ElrcParser.parse(elrcContent);
-      await _persist(song.id, parsed);
-      // Mark the song as having synced lyrics.
-      await (_db.update(_db.songs)..where((s) => s.id.equals(song.id)))
-          .write(const SongsCompanion(hasSyncedLyrics: Value(true)));
-      return parsed;
+      return importElrcForSong(song, elrcContent);
     } catch (_) {
       // Asset not found, or .elrc file is malformed — no lyrics for this song.
       return const SyncedLyrics(lines: []);
     }
+  }
+
+  Future<SyncedLyrics> importElrcForSong(Song song, String elrcContent) async {
+    final parsed = ElrcParser.parse(elrcContent);
+    await _persist(song.id, parsed);
+    await (_db.update(_db.songs)..where((s) => s.id.equals(song.id)))
+        .write(const SongsCompanion(hasSyncedLyrics: Value(true)));
+    return parsed;
   }
 
   Future<SyncedLyrics> _buildModelFromDb(List<LyricsLine> dbLines) async {

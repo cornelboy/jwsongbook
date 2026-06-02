@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
@@ -116,17 +117,14 @@ class PlayerNotifier extends _$PlayerNotifier {
     state = state.copyWith(isLoading: true, currentSong: song, error: null);
 
     try {
-      final assetPath = AppConstants.audioFileName(song.number);
-      final source = AudioSource.asset(
-        assetPath,
-        tag: MediaItem(
-          id: song.id.toString(),
-          album: 'Kingdom Songs',
-          title: song.title,
-          artUri: null,
-          extras: {'number': song.number},
-        ),
+      final mediaItem = MediaItem(
+        id: song.id.toString(),
+        album: 'Kingdom Songs',
+        title: song.title,
+        artUri: null,
+        extras: {'number': song.number},
       );
+      final source = await _audioSourceForSong(song, mediaItem);
 
       await _player.setAudioSource(source);
       state = state.copyWith(isLoading: false);
@@ -138,6 +136,24 @@ class PlayerNotifier extends _$PlayerNotifier {
         error: 'Could not play song ${song.number}: $e',
       );
     }
+  }
+
+  Future<AudioSource> _audioSourceForSong(
+    Song song,
+    MediaItem mediaItem,
+  ) async {
+    final audioFilePath = song.audioFilePath;
+    if (song.isDownloaded && audioFilePath != null) {
+      final audioFile = File(audioFilePath);
+      if (await audioFile.exists()) {
+        return AudioSource.uri(Uri.file(audioFile.path), tag: mediaItem);
+      }
+    }
+
+    return AudioSource.asset(
+      AppConstants.audioFileName(song.number),
+      tag: mediaItem,
+    );
   }
 
   Future<void> togglePlayPause() async {

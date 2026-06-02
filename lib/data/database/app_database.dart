@@ -63,6 +63,14 @@ class SongsDao extends DatabaseAccessor<AppDatabase> with _$SongsDaoMixin {
           lastPlayedAt: Value(DateTime.now().toIso8601String()),
         ),
       );
+
+  Future<void> markDownloaded(int id, {required String audioFilePath}) =>
+      (update(songs)..where((s) => s.id.equals(id))).write(
+        SongsCompanion(
+          audioFilePath: Value(audioFilePath),
+          isDownloaded: const Value(true),
+        ),
+      );
 }
 
 @DriftAccessor(
