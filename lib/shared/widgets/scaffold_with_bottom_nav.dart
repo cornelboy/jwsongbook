@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import 'package:jwsongbook/core/router/app_router.dart';
 import 'package:jwsongbook/core/theme/app_colors.dart';
+import 'package:jwsongbook/shared/widgets/floating_lyrics_button.dart';
 import 'package:jwsongbook/shared/widgets/mini_player_bar.dart';
 
 class ScaffoldWithBottomNav extends ConsumerWidget {
@@ -52,6 +53,7 @@ class ScaffoldWithBottomNav extends ConsumerWidget {
 
     return Scaffold(
       body: child,
+      floatingActionButton: const FloatingLyricsButton(),
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

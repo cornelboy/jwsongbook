@@ -29,3 +29,23 @@ The immediate priority is to make the Now Playing experience feel intentional an
 - Add lyric edge fade gradients for a more polished karaoke surface.
 - Allow tapping a lyric line to seek to that line.
 - Keep the current sync behavior intact.
+
+## Floating Button Direction
+
+Skip the full Android system overlay for now. Build a controlled first version
+inside the app:
+
+- Show an in-app floating now-playing button when a song is loaded and the user
+  is not already on Now Playing.
+- Tapping it should open Now Playing.
+- Keep it compact and subtle, likely bottom-right above the bottom navigation.
+- Use a music icon or the current song number, with restrained purple styling.
+- Keep the current mini-player for testing; decide later whether the floater
+  replaces it or coexists with it.
+- Tapping the floating button should open a compact lyrics panel instead of
+  navigating directly to Now Playing.
+- The compact panel should show the current song, the active lyric line, the
+  next 1-2 lines, play/pause, and an action to open the full Now Playing page.
+
+Do not build true "lyrics anywhere" yet. That will need Android overlay
+permissions, background behavior, and more UX decisions.
