@@ -19,8 +19,7 @@ class DownloadController extends Notifier<DownloadState> {
       return;
     }
 
-    const manifestUrl = AppConstants.songManifestUrl;
-    if (manifestUrl == null) {
+    if (!AppConstants.hasSongManifestUrl) {
       _setSongError(song.number, 'Downloads will be available soon.');
       return;
     }
@@ -32,7 +31,9 @@ class DownloadController extends Notifier<DownloadState> {
     );
 
     try {
-      final manifest = await service.fetchManifest(Uri.parse(manifestUrl));
+      final manifest = await service.fetchManifest(
+        Uri.parse(AppConstants.songManifestUrl),
+      );
       final asset = manifest.assetFor(song.number);
       if (asset == null) {
         throw StateError('Song ${song.paddedNumber} is not in the manifest.');
@@ -57,8 +58,7 @@ class DownloadController extends Notifier<DownloadState> {
   }
 
   Future<void> downloadAllSongs() async {
-    const manifestUrl = AppConstants.songManifestUrl;
-    if (manifestUrl == null) {
+    if (!AppConstants.hasSongManifestUrl) {
       state = state.copyWith(
         globalMessage: 'Downloads will be available soon.',
       );

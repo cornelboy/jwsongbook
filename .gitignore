@@ -60,3 +60,8 @@ app.*.map.json
 /research/*.mkv
 /research/*.webm
 /research/*.pdf
+
+# Generated download server media
+/download_server/audio/
+/download_server/lyrics/
+/download_server/manifest.json

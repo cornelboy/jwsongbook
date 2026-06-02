@@ -56,7 +56,7 @@ class _DownloadBody extends ConsumerWidget {
     final downloadStatus =
         ref.watch(downloadControllerProvider).statusFor(song.number);
     final hasLocalAudio = song.hasLocalAudio || downloadStatus.isDownloaded;
-    const downloadsReady = AppConstants.songManifestUrl != null;
+    const downloadsReady = AppConstants.hasSongManifestUrl;
 
     return ListView(
       padding: const EdgeInsets.all(AppConstants.screenPaddingH),

@@ -3,15 +3,15 @@ import 'dart:convert';
 class SongManifest {
   const SongManifest({required this.songs});
 
-  factory SongManifest.fromJsonString(String source) {
+  factory SongManifest.fromJsonString(String source, {Uri? baseUri}) {
     final decoded = jsonDecode(source);
     if (decoded is! Map<String, Object?>) {
       throw const FormatException('Manifest root must be a JSON object.');
     }
-    return SongManifest.fromJson(decoded);
+    return SongManifest.fromJson(decoded, baseUri: baseUri);
   }
 
-  factory SongManifest.fromJson(Map<String, Object?> json) {
+  factory SongManifest.fromJson(Map<String, Object?> json, {Uri? baseUri}) {
     final songsJson = json['songs'];
     if (songsJson is! List<Object?>) {
       throw const FormatException('Manifest songs must be a JSON array.');
@@ -22,7 +22,7 @@ class SongManifest {
         if (item is! Map<String, Object?>) {
           throw const FormatException('Song manifest item is invalid.');
         }
-        return RemoteSongAsset.fromJson(item);
+        return RemoteSongAsset.fromJson(item, baseUri: baseUri);
       }).toList(),
     );
   }
@@ -47,11 +47,11 @@ class RemoteSongAsset {
     this.lyricsSizeBytes,
   });
 
-  factory RemoteSongAsset.fromJson(Map<String, Object?> json) {
+  factory RemoteSongAsset.fromJson(Map<String, Object?> json, {Uri? baseUri}) {
     return RemoteSongAsset(
       number: _requiredInt(json, 'number'),
-      audioUrl: _requiredUri(json, 'audioUrl'),
-      lyricsUrl: _optionalUri(json, 'lyricsUrl'),
+      audioUrl: _requiredUri(json, 'audioUrl', baseUri: baseUri),
+      lyricsUrl: _optionalUri(json, 'lyricsUrl', baseUri: baseUri),
       audioSizeBytes: _optionalInt(json, 'audioSize'),
       lyricsSizeBytes: _optionalInt(json, 'lyricsSize'),
       version: _optionalInt(json, 'version') ?? 1,
@@ -78,16 +78,28 @@ class RemoteSongAsset {
     throw FormatException('Manifest field "$key" must be an integer.');
   }
 
-  static Uri _requiredUri(Map<String, Object?> json, String key) {
+  static Uri _requiredUri(
+    Map<String, Object?> json,
+    String key, {
+    Uri? baseUri,
+  }) {
     final value = json[key];
-    if (value is String) return Uri.parse(value);
+    if (value is String) return _parseUri(value, baseUri: baseUri);
     throw FormatException('Manifest field "$key" must be a URL string.');
   }
 
-  static Uri? _optionalUri(Map<String, Object?> json, String key) {
+  static Uri? _optionalUri(
+    Map<String, Object?> json,
+    String key, {
+    Uri? baseUri,
+  }) {
     final value = json[key];
     if (value == null) return null;
-    if (value is String) return Uri.parse(value);
+    if (value is String) return _parseUri(value, baseUri: baseUri);
     throw FormatException('Manifest field "$key" must be a URL string.');
+  }
+
+  static Uri _parseUri(String value, {Uri? baseUri}) {
+    return baseUri?.resolve(value) ?? Uri.parse(value);
   }
 }

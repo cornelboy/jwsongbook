@@ -30,7 +30,7 @@ class SongDownloadService {
 
   Future<SongManifest> fetchManifest(Uri manifestUri) async {
     final content = await _readUriAsString(manifestUri);
-    return SongManifest.fromJsonString(content);
+    return SongManifest.fromJsonString(content, baseUri: manifestUri);
   }
 
   Future<void> downloadSong({

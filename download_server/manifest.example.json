@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "songs": [
+    {
+      "number": 1,
+      "audioUrl": "audio/001.mp3",
+      "lyricsUrl": "lyrics/001.elrc",
+      "audioSize": 5119230,
+      "lyricsSize": 1636,
+      "version": 1
+    },
+    {
+      "number": 2,
+      "audioUrl": "audio/002.mp3",
+      "lyricsUrl": "lyrics/002.elrc",
+      "audioSize": 6929363,
+      "lyricsSize": 1633,
+      "version": 1
+    },
+    {
+      "number": 3,
+      "audioUrl": "audio/003.mp3",
+      "lyricsUrl": "lyrics/003.elrc",
+      "audioSize": 6715389,
+      "lyricsSize": 1823,
+      "version": 1
+    }
+  ]
+}

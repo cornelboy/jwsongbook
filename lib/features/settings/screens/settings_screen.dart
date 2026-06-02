@@ -112,7 +112,7 @@ class SettingsScreen extends ConsumerWidget {
                 : const Icon(Icons.download_outlined),
             title: const Text('Download all songs'),
             subtitle: const Text(
-              AppConstants.songManifestUrl == null
+              !AppConstants.hasSongManifestUrl
                   ? 'Waiting for server setup'
                   : 'Save every song for offline use',
             ),

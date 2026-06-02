@@ -6,8 +6,13 @@ abstract final class AppConstants {
   /// Temporary bundled starter set while remote downloads are being wired.
   static const Set<int> bundledSongNumbers = {1, 2, 3};
 
-  /// Set this once the download server manifest is live.
-  static const String? songManifestUrl = null;
+  /// Optional remote manifest. Pass with:
+  /// --dart-define=SONG_MANIFEST_URL=https://host.example/manifest.json
+  static const String songManifestUrl = String.fromEnvironment(
+    'SONG_MANIFEST_URL',
+  );
+
+  static const bool hasSongManifestUrl = songManifestUrl != '';
 
   static bool isBundledSongNumber(int songNumber) =>
       bundledSongNumbers.contains(songNumber);

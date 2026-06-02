@@ -44,5 +44,33 @@ void main() {
 
       expect(manifest.assetFor(2)?.version, 1);
     });
+
+    test('resolves relative URLs against the manifest URL', () {
+      final manifest = SongManifest.fromJsonString(
+        '''
+{
+  "songs": [
+    {
+      "number": 3,
+      "audioUrl": "audio/003.mp3",
+      "lyricsUrl": "lyrics/003.elrc"
+    }
+  ]
+}
+''',
+        baseUri: Uri.parse('https://example.com/downloads/manifest.json'),
+      );
+
+      final asset = manifest.assetFor(3);
+
+      expect(
+        asset?.audioUrl.toString(),
+        'https://example.com/downloads/audio/003.mp3',
+      );
+      expect(
+        asset?.lyricsUrl.toString(),
+        'https://example.com/downloads/lyrics/003.elrc',
+      );
+    });
   });
 }
