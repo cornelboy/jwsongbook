@@ -51,7 +51,11 @@ class _FloatingLyricsButtonState extends ConsumerState<FloatingLyricsButton> {
           builder: (context, constraints) {
             final maxX = constraints.maxWidth - _buttonSize - _edgePadding;
             final maxY = constraints.maxHeight - _buttonSize - _edgePadding;
-            final defaultPosition = Offset(maxX, maxY);
+            final defaultY = (constraints.maxHeight * 0.22).clamp(
+              _edgePadding,
+              maxY,
+            );
+            final defaultPosition = Offset(maxX, defaultY);
             final position = _clampPosition(
               _position ?? defaultPosition,
               maxX,
@@ -110,10 +114,20 @@ class _FloatingLyricsButtonState extends ConsumerState<FloatingLyricsButton> {
                     onTapCancel: () {
                       setState(() => _isButtonPressed = false);
                     },
-                    onPanStart: (_) {
+                    onPanStart: (details) {
+                      const touchPadding = (_touchSize - _buttonSize) / 2;
+                      final touchPoint = position -
+                          const Offset(touchPadding, touchPadding) +
+                          details.localPosition;
                       setState(() {
                         _isDragging = true;
                         _isButtonPressed = false;
+                        _position = _clampPosition(
+                          touchPoint -
+                              const Offset(_buttonSize / 2, _buttonSize / 2),
+                          maxX,
+                          maxY,
+                        );
                       });
                     },
                     onPanUpdate: (details) {
