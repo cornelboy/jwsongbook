@@ -54,9 +54,6 @@ class SongCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   _SongMetaRow(
                     hasSyncedLyrics: song.hasSyncedLyrics,
-                    hasLocalAudio:
-                        song.hasLocalAudio || downloadStatus.isDownloaded,
-                    isCurrentlyPlaying: isCurrentlyPlaying,
                   ),
                 ],
               ),
@@ -126,13 +123,9 @@ class _SongNumberBadge extends StatelessWidget {
 class _SongMetaRow extends StatelessWidget {
   const _SongMetaRow({
     required this.hasSyncedLyrics,
-    required this.hasLocalAudio,
-    required this.isCurrentlyPlaying,
   });
 
   final bool hasSyncedLyrics;
-  final bool hasLocalAudio;
-  final bool isCurrentlyPlaying;
 
   @override
   Widget build(BuildContext context) {
@@ -140,34 +133,11 @@ class _SongMetaRow extends StatelessWidget {
       const Text('Kingdom Song', style: AppTypography.caption),
     ];
 
-    if (hasLocalAudio) {
-      children.add(
-        const _MetaItem(
-          icon: Icons.check_circle_outline,
-          label: 'Stored',
-        ),
-      );
-    }
-
     if (hasSyncedLyrics) {
       children.add(
         const _MetaItem(
           icon: Icons.lyrics_outlined,
           label: 'Synced',
-        ),
-      );
-    }
-
-    if (isCurrentlyPlaying) {
-      children.add(
-        _MetaItem(
-          icon: Icons.equalizer,
-          label: 'Playing',
-          color: AppColors.primaryPurple,
-          style: AppTypography.caption.copyWith(
-            color: AppColors.primaryPurple,
-            fontWeight: FontWeight.w600,
-          ),
         ),
       );
     }
@@ -185,23 +155,19 @@ class _MetaItem extends StatelessWidget {
   const _MetaItem({
     required this.icon,
     required this.label,
-    this.color = AppColors.textMedium,
-    this.style = AppTypography.caption,
   });
 
   final IconData icon;
   final String label;
-  final Color color;
-  final TextStyle style;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 13, color: color),
+        Icon(icon, size: 13, color: AppColors.textMedium),
         const SizedBox(width: 4),
-        Text(label, style: style),
+        Text(label, style: AppTypography.caption),
       ],
     );
   }
@@ -244,11 +210,11 @@ class _DownloadAction extends StatelessWidget {
 
     return IconButton(
       onPressed: onTap,
-      icon: Icon(
-        status.hasError ? Icons.error_outline : Icons.download_outlined,
-        color: status.hasError ? AppColors.error : AppColors.textMedium,
+      icon: const Icon(
+        Icons.download_outlined,
+        color: AppColors.textInactive,
       ),
-      tooltip: status.hasError ? 'Retry download' : 'Download',
+      tooltip: 'Download',
       splashRadius: 22,
     );
   }

@@ -110,7 +110,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     isCurrentlyPlaying: currentSong?.id == song.id,
                     downloadStatus: downloadState.statusFor(song.number),
                     onTap: () => _playSong(song, context),
-                    onDownloadTap: () => _downloadSong(song, context),
+                    onDownloadTap: () => _openDownload(song, context),
                     onFavoriteTap: () => _toggleFavorite(song),
                   );
                 },
@@ -126,7 +126,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   void _playSong(Song song, BuildContext context) {
     if (!song.hasLocalAudio) {
-      _downloadSong(song, context);
+      _openDownload(song, context);
       return;
     }
 
@@ -134,16 +134,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     context.go(AppRoutes.nowPlaying);
   }
 
-  Future<void> _downloadSong(Song song, BuildContext context) async {
-    await ref.read(downloadControllerProvider.notifier).downloadSong(song);
-    if (!context.mounted) return;
-
-    final status = ref.read(downloadControllerProvider).statusFor(song.number);
-    if (status.hasError) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(status.message ?? 'Download failed.')),
-      );
-    }
+  void _openDownload(Song song, BuildContext context) {
+    context.go(AppRoutes.downloadPath(song.number));
   }
 
   void _toggleFavorite(Song song) {

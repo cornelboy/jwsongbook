@@ -21,7 +21,7 @@ class DownloadController extends Notifier<DownloadState> {
 
     const manifestUrl = AppConstants.songManifestUrl;
     if (manifestUrl == null) {
-      _setSongError(song.number, 'Download server is not configured yet.');
+      _setSongError(song.number, 'Downloads will be available soon.');
       return;
     }
 
@@ -60,7 +60,7 @@ class DownloadController extends Notifier<DownloadState> {
     const manifestUrl = AppConstants.songManifestUrl;
     if (manifestUrl == null) {
       state = state.copyWith(
-        globalMessage: 'Download server is not configured yet.',
+        globalMessage: 'Downloads will be available soon.',
       );
       return;
     }

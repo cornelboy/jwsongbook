@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:jwsongbook/features/downloads/screens/download_screen.dart';
 import 'package:jwsongbook/features/favorites/screens/favorites_screen.dart';
 import 'package:jwsongbook/features/library/screens/library_screen.dart';
 import 'package:jwsongbook/features/player/screens/player_screen.dart';
@@ -16,8 +17,10 @@ abstract final class AppRoutes {
   static const String nowPlaying = '/now-playing';
   static const String settings = '/settings';
   static const String song = '/song/:number';
+  static const String download = '/download/:number';
 
   static String songPath(int number) => '/song/$number';
+  static String downloadPath(int number) => '/download/$number';
 }
 
 @Riverpod(keepAlive: true)
@@ -59,6 +62,14 @@ GoRouter appRouter(Ref ref) {
               final number =
                   int.tryParse(state.pathParameters['number'] ?? '') ?? 1;
               return PlayerScreen(initialSongNumber: number);
+            },
+          ),
+          GoRoute(
+            path: AppRoutes.download,
+            builder: (context, state) {
+              final number =
+                  int.tryParse(state.pathParameters['number'] ?? '') ?? 1;
+              return DownloadScreen(songNumber: number);
             },
           ),
         ],

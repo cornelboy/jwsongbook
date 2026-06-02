@@ -65,8 +65,7 @@ class FavoritesScreen extends ConsumerWidget {
                           isCurrentlyPlaying: currentSong?.id == song.id,
                           downloadStatus: downloadState.statusFor(song.number),
                           onTap: () => _playSong(song, context, ref),
-                          onDownloadTap: () =>
-                              _downloadSong(song, context, ref),
+                          onDownloadTap: () => _openDownload(song, context),
                           onFavoriteTap: () => ref
                               .read(songsRepositoryProvider)
                               .toggleFavorite(song),
@@ -82,7 +81,7 @@ class FavoritesScreen extends ConsumerWidget {
 
   void _playSong(Song song, BuildContext context, WidgetRef ref) {
     if (!song.hasLocalAudio) {
-      _downloadSong(song, context, ref);
+      _openDownload(song, context);
       return;
     }
 
@@ -90,20 +89,8 @@ class FavoritesScreen extends ConsumerWidget {
     context.go(AppRoutes.nowPlaying);
   }
 
-  Future<void> _downloadSong(
-    Song song,
-    BuildContext context,
-    WidgetRef ref,
-  ) async {
-    await ref.read(downloadControllerProvider.notifier).downloadSong(song);
-    if (!context.mounted) return;
-
-    final status = ref.read(downloadControllerProvider).statusFor(song.number);
-    if (status.hasError) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(status.message ?? 'Download failed.')),
-      );
-    }
+  void _openDownload(Song song, BuildContext context) {
+    context.go(AppRoutes.downloadPath(song.number));
   }
 }
 
