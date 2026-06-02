@@ -115,27 +115,22 @@ class _FloatingLyricsButtonState extends ConsumerState<FloatingLyricsButton> {
                       setState(() => _isButtonPressed = false);
                     },
                     onPanStart: (details) {
-                      const touchPadding = (_touchSize - _buttonSize) / 2;
-                      final touchPoint = position -
-                          const Offset(touchPadding, touchPadding) +
-                          details.localPosition;
                       setState(() {
                         _isDragging = true;
                         _isButtonPressed = false;
-                        _position = _clampPosition(
-                          touchPoint -
-                              const Offset(_buttonSize / 2, _buttonSize / 2),
-                          maxX,
-                          maxY,
+                        _position = _dragPositionFromGlobal(
+                          context: context,
+                          constraints: constraints,
+                          globalPosition: details.globalPosition,
                         );
                       });
                     },
                     onPanUpdate: (details) {
                       setState(() {
-                        _position = _clampPosition(
-                          position + details.delta,
-                          maxX,
-                          maxY,
+                        _position = _dragPositionFromGlobal(
+                          context: context,
+                          constraints: constraints,
+                          globalPosition: details.globalPosition,
                         );
                       });
                     },
@@ -183,6 +178,23 @@ class _FloatingLyricsButtonState extends ConsumerState<FloatingLyricsButton> {
     return Offset(
       value.dx.clamp(_edgePadding, maxX),
       value.dy.clamp(_edgePadding, maxY),
+    );
+  }
+
+  Offset _dragPositionFromGlobal({
+    required BuildContext context,
+    required BoxConstraints constraints,
+    required Offset globalPosition,
+  }) {
+    final renderBox = context.findRenderObject() as RenderBox?;
+    final localPosition =
+        renderBox?.globalToLocal(globalPosition) ?? globalPosition;
+    final rawPosition =
+        localPosition - const Offset(_buttonSize / 2, _buttonSize / 2);
+
+    return Offset(
+      rawPosition.dx.clamp(0.0, constraints.maxWidth - _buttonSize),
+      rawPosition.dy.clamp(0.0, constraints.maxHeight - _buttonSize),
     );
   }
 
