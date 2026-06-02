@@ -22,12 +22,15 @@ class FloatingLyricsButton extends ConsumerStatefulWidget {
 class _FloatingLyricsButtonState extends ConsumerState<FloatingLyricsButton> {
   Offset? _position;
   bool _isPanelOpen = false;
+  bool _isDragging = false;
 
   static const double _buttonSize = 52;
+  static const double _touchSize = 68;
   static const double _edgePadding = 16;
   static const double _panelGap = 10;
   static const double _panelPreferredWidth = 320;
   static const double _panelEstimatedHeight = 300;
+  static const Duration _snapDuration = Duration(milliseconds: 165);
 
   @override
   Widget build(BuildContext context) {
@@ -85,10 +88,15 @@ class _FloatingLyricsButtonState extends ConsumerState<FloatingLyricsButton> {
                     width: panelWidth,
                     child: const _FloatingLyricsPanel(),
                   ),
-                Positioned(
-                  left: position.dx,
-                  top: position.dy,
+                AnimatedPositioned(
+                  duration: _isDragging ? Duration.zero : _snapDuration,
+                  curve: Curves.easeOutCubic,
+                  left: position.dx - ((_touchSize - _buttonSize) / 2),
+                  top: position.dy - ((_touchSize - _buttonSize) / 2),
                   child: GestureDetector(
+                    onPanStart: (_) {
+                      setState(() => _isDragging = true);
+                    },
                     onPanUpdate: (details) {
                       setState(() {
                         _position = _clampPosition(
@@ -100,27 +108,37 @@ class _FloatingLyricsButtonState extends ConsumerState<FloatingLyricsButton> {
                     },
                     onPanEnd: (_) {
                       setState(() {
+                        _isDragging = false;
                         _position = Offset(
                           isRightSide ? maxX : _edgePadding,
                           position.dy,
                         );
                       });
                     },
+                    onPanCancel: () {
+                      setState(() => _isDragging = false);
+                    },
                     child: SizedBox(
-                      width: _buttonSize,
-                      height: _buttonSize,
-                      child: FloatingActionButton(
-                        heroTag: 'floating-lyrics-button',
-                        mini: true,
-                        tooltip: 'Show lyrics',
-                        onPressed: () {
-                          setState(() => _isPanelOpen = !_isPanelOpen);
-                        },
-                        child: Text(
-                          song.paddedNumber,
-                          style: AppTypography.songNumber.copyWith(
-                            color: AppColors.background,
-                            fontWeight: FontWeight.w800,
+                      width: _touchSize,
+                      height: _touchSize,
+                      child: Center(
+                        child: SizedBox(
+                          width: _buttonSize,
+                          height: _buttonSize,
+                          child: FloatingActionButton(
+                            heroTag: 'floating-lyrics-button',
+                            mini: true,
+                            tooltip: 'Show lyrics',
+                            onPressed: () {
+                              setState(() => _isPanelOpen = !_isPanelOpen);
+                            },
+                            child: Text(
+                              song.paddedNumber,
+                              style: AppTypography.songNumber.copyWith(
+                                color: AppColors.background,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -331,22 +349,16 @@ class _UpcomingLyricPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: AppColors.card,
-        border: Border.all(color: AppColors.divider),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 22),
-        child: Text(
-          line.text,
-          maxLines: 3,
-          overflow: TextOverflow.ellipsis,
-          style: AppTypography.lyricsActive.copyWith(
-            color: AppColors.textMedium,
-            fontSize: 22,
-          ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Text(
+        line.text,
+        maxLines: 3,
+        overflow: TextOverflow.ellipsis,
+        style: AppTypography.lyricsActive.copyWith(
+          color: AppColors.textMedium,
+          fontSize: 22,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );
@@ -400,7 +412,6 @@ class _PanelActions extends ConsumerWidget {
         Expanded(
           child: OutlinedButton.icon(
             onPressed: () {
-              Navigator.of(context).pop();
               context.go(AppRoutes.nowPlaying);
             },
             icon: const Icon(Icons.open_in_full, size: 18),

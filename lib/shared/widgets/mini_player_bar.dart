@@ -20,17 +20,22 @@ class MiniPlayerBar extends ConsumerWidget {
     final playerState = ref.watch(playerNotifierProvider);
     final song = playerState.currentSong;
 
-    if (song == null) return const SizedBox.shrink();
+    if (song == null) {
+      return const SizedBox.shrink();
+    }
 
     final notifier = ref.read(playerNotifierProvider.notifier);
     final progress = playerState.duration.inMilliseconds > 0
         ? playerState.position.inMilliseconds /
             playerState.duration.inMilliseconds
         : 0.0;
+    final isActivelyPlaying = playerState.isPlaying && !playerState.isCompleted;
 
     // Don't show mini player when the user is already on the Now Playing tab.
     final location = GoRouterState.of(context).uri.toString();
-    if (location.startsWith(AppRoutes.nowPlaying)) return const SizedBox.shrink();
+    if (location.startsWith(AppRoutes.nowPlaying)) {
+      return const SizedBox.shrink();
+    }
 
     return GestureDetector(
       onTap: () => context.go(AppRoutes.nowPlaying),
@@ -73,7 +78,7 @@ class MiniPlayerBar extends ConsumerWidget {
                     ),
                     // Play / Pause.
                     _PlayPauseButton(
-                      isPlaying: playerState.isPlaying,
+                      isPlaying: isActivelyPlaying,
                       isLoading: playerState.isLoading,
                       onTap: notifier.togglePlayPause,
                     ),
