@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
+import 'package:jwsongbook/data/database/tables/playlists_table.dart';
 import 'package:jwsongbook/data/database/tables/songs_table.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -50,18 +51,73 @@ class SongsDao extends DatabaseAccessor<AppDatabase> with _$SongsDaoMixin {
   Future<List<Song>> getAll() =>
       (select(songs)..orderBy([(s) => OrderingTerm.asc(s.number)])).get();
 
+  Stream<int> watchCount() {
+    final count = songs.id.count();
+    final query = selectOnly(songs)..addColumns([count]);
+    return query.watchSingle().map((row) => row.read(count) ?? 0);
+  }
+
+  Stream<List<Song>> watchDownloaded() => (select(songs)
+        ..where((s) => s.isDownloaded.equals(true))
+        ..orderBy([(s) => OrderingTerm.asc(s.number)]))
+      .watch();
+
   Future<Song?> getByNumber(int number) =>
       (select(songs)..where((s) => s.number.equals(number))).getSingleOrNull();
+
+  Stream<Song?> watchByNumber(int number) =>
+      (select(songs)..where((s) => s.number.equals(number)))
+          .watchSingleOrNull();
 
   Future<void> upsert(SongsCompanion entry) =>
       into(songs).insertOnConflictUpdate(entry);
 
-  Future<void> upsertAll(List<SongsCompanion> entries) =>
-      batch((b) => b.insertAllOnConflictUpdate(songs, entries));
+  /// Inserts new catalog rows and updates official metadata on existing rows.
+  /// User-owned fields such as favorites, downloads, lyrics, and playback
+  /// history are deliberately never included in the update.
+  Future<void> mergeCatalogMetadata(List<SongsCompanion> entries) =>
+      transaction(() async {
+        for (final entry in entries) {
+          if (!entry.number.present || !entry.title.present) {
+            throw ArgumentError(
+              'Catalog entries must include a song number and title.',
+            );
+          }
 
-  Future<void> toggleFavorite(int id, {required bool value}) =>
-      (update(songs)..where((s) => s.id.equals(id)))
-          .write(SongsCompanion(isFavorited: Value(value)));
+          final number = entry.number.value;
+          final exists = await (selectOnly(songs)
+                ..addColumns([songs.id])
+                ..where(songs.number.equals(number)))
+              .getSingleOrNull();
+
+          if (exists == null) {
+            await into(songs).insert(entry);
+          } else {
+            await (update(songs)..where((song) => song.number.equals(number)))
+                .write(
+              SongsCompanion(
+                title: entry.title,
+                durationMs: entry.durationMs,
+              ),
+            );
+          }
+        }
+      });
+
+  Future<void> toggleFavorite(int id) => transaction(() async {
+        final song = await (select(songs)..where((s) => s.id.equals(id)))
+            .getSingleOrNull();
+        if (song == null) return;
+
+        await (update(songs)..where((s) => s.id.equals(id))).write(
+          SongsCompanion(isFavorited: Value(!song.isFavorited)),
+        );
+      });
+
+  Future<void> setFavorite(int id, {required bool value}) =>
+      (update(songs)..where((s) => s.id.equals(id))).write(
+        SongsCompanion(isFavorited: Value(value)),
+      );
 
   Future<void> markPlayed(int id) =>
       (update(songs)..where((s) => s.id.equals(id))).write(
@@ -76,6 +132,19 @@ class SongsDao extends DatabaseAccessor<AppDatabase> with _$SongsDaoMixin {
           audioFilePath: Value(audioFilePath),
           isDownloaded: const Value(true),
         ),
+      );
+
+  Future<void> markDownloadRemoved(int id) =>
+      (update(songs)..where((s) => s.id.equals(id))).write(
+        const SongsCompanion(
+          audioFilePath: Value(null),
+          isDownloaded: Value(false),
+        ),
+      );
+
+  Future<void> removeDoubleQuotesFromTitles() => customStatement(
+        'UPDATE songs SET title = replace(title, \'"\' , \'\') '
+        'WHERE instr(title, \'"\' ) > 0',
       );
 }
 
@@ -135,7 +204,7 @@ class LyricsDao extends DatabaseAccessor<AppDatabase> with _$LyricsDaoMixin {
 // ── Database ─────────────────────────────────────────────────────────────────
 
 @DriftDatabase(
-  tables: [Songs],
+  tables: [Songs, Playlists, PlaylistEntries],
   include: {'package:jwsongbook/data/database/lyrics_tables.drift'},
   daos: [SongsDao, LyricsDao],
 )
@@ -146,13 +215,24 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) => m.createAll(),
         onUpgrade: (m, from, to) async {
-          // Future migrations go here.
+          if (from < 5) {
+            await m.createTable(playlists);
+            await m.createTable(playlistEntries);
+          }
+          if (from < 2) {
+            await m.addColumn(lyricsLines, lyricsLines.sectionIndex);
+          }
+          if (from < 3) {
+            // ignore: experimental_member_use
+            await m.alterTable(TableMigration(songs));
+          }
+
         },
         beforeOpen: (details) async {
           // Enable WAL mode and foreign key enforcement.

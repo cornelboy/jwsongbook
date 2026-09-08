@@ -1,5 +1,7 @@
+import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jwsongbook/data/database/app_database.dart';
+import 'package:jwsongbook/data/models/song_manifest_model.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'songs_repository.g.dart';
@@ -23,30 +25,68 @@ class SongsRepository {
 
   Stream<List<Song>> watchRecentlyPlayed() => _dao.watchRecentlyPlayed();
 
+  Stream<List<Song>> watchDownloaded() => _dao.watchDownloaded();
+
+  Stream<int> watchCount() => _dao.watchCount();
+
   Future<List<Song>> getAllSongs() => _dao.getAll();
 
   Future<Song?> getByNumber(int number) => _dao.getByNumber(number);
 
-  Future<void> toggleFavorite(Song song) =>
-      _dao.toggleFavorite(song.id, value: !song.isFavorited);
+  Stream<Song?> watchByNumber(int number) => _dao.watchByNumber(number);
+
+  Future<void> toggleFavorite(Song song) => _dao.toggleFavorite(song.id);
+
+  Future<void> setFavorite(Song song, {required bool value}) =>
+      _dao.setFavorite(song.id, value: value);
 
   Future<void> markPlayed(Song song) => _dao.markPlayed(song.id);
 
   Future<void> markDownloaded(Song song, {required String audioFilePath}) =>
       _dao.markDownloaded(song.id, audioFilePath: audioFilePath);
 
-  /// Seed the database with all 162 song titles.
-  /// Call once on first launch.  No-op if data already exists.
-  Future<void> seedIfEmpty() async {
-    final existing = await _dao.getAll();
-    if (existing.isNotEmpty) return;
-    await _dao.upsertAll(_kSeedSongs);
+  Future<void> markDownloadRemoved(Song song) =>
+      _dao.markDownloadRemoved(song.id);
+
+  /// Merges the bundled baseline catalog on every launch.
+  ///
+  /// This adds titles introduced by an app update without replacing any
+  /// user-owned state on rows that already exist.
+  Future<void> syncBundledCatalog() async {
+    await _dao.mergeCatalogMetadata(_kSeedSongs);
+    await _dao.removeDoubleQuotesFromTitles();
+  }
+
+  /// Adds or refreshes catalog metadata supplied by the remote manifest.
+  /// Entries without a title can still provide downloadable assets for songs
+  /// already known locally, but cannot create an ambiguous catalog row.
+  Future<void> syncRemoteCatalog(SongManifest manifest) async {
+    final entries = manifest.songs
+        .where((asset) => asset.hasCatalogMetadata)
+        .map(
+          (asset) => SongsCompanion.insert(
+            number: asset.number,
+            title: asset.title!,
+            durationMs: asset.durationMs == null
+                ? const Value.absent()
+                : Value(asset.durationMs),
+          ),
+        )
+        .toList();
+
+    if (entries.isNotEmpty) {
+      await _dao.mergeCatalogMetadata(entries);
+    }
   }
 }
 
 @riverpod
 SongsRepository songsRepository(Ref ref) =>
     SongsRepository(ref.watch(songsDaoProvider));
+
+final songCountProvider = StreamProvider<int>(
+  (ref) => ref.watch(songsRepositoryProvider).watchCount(),
+);
 
 // ── Seed data ─────────────────────────────────────────────────────────────────
 // All 162 titles from the Kingdom Songs songbook.
@@ -58,7 +98,7 @@ final List<SongsCompanion> _kSeedSongs = [
     number: 3,
     title: 'Our Strength, Our Hope, Our Confidence',
   ),
-  SongsCompanion.insert(number: 4, title: '"Jehovah Is My Shepherd"'),
+  SongsCompanion.insert(number: 4, title: 'Jehovah Is My Shepherd'),
   SongsCompanion.insert(number: 5, title: "God's Wondrous Works"),
   SongsCompanion.insert(number: 6, title: "The Heavens Declare God's Glory"),
   SongsCompanion.insert(number: 7, title: 'Jehovah, Our Strength'),
@@ -74,7 +114,7 @@ final List<SongsCompanion> _kSeedSongs = [
     number: 16,
     title: 'Praise Jah for His Son, the Anointed',
   ),
-  SongsCompanion.insert(number: 17, title: '"I Want To"'),
+  SongsCompanion.insert(number: 17, title: 'I Want To'),
   SongsCompanion.insert(number: 18, title: 'Grateful for the Ransom'),
   SongsCompanion.insert(number: 19, title: "The Lord's Evening Meal"),
   SongsCompanion.insert(number: 20, title: 'You Gave Your Precious Son'),
@@ -97,7 +137,7 @@ final List<SongsCompanion> _kSeedSongs = [
   SongsCompanion.insert(number: 34, title: 'Walking in Integrity'),
   SongsCompanion.insert(
     number: 35,
-    title: '"Make Sure of the More Important Things"',
+    title: 'Make Sure of the More Important Things',
   ),
   SongsCompanion.insert(number: 36, title: 'We Guard Our Hearts'),
   SongsCompanion.insert(number: 37, title: 'Serving Jehovah Whole-Souled'),
@@ -117,7 +157,7 @@ final List<SongsCompanion> _kSeedSongs = [
   SongsCompanion.insert(number: 51, title: 'To God We Are Dedicated!'),
   SongsCompanion.insert(number: 52, title: 'Christian Dedication'),
   SongsCompanion.insert(number: 53, title: 'Preparing to Preach'),
-  SongsCompanion.insert(number: 54, title: '"This Is the Way"'),
+  SongsCompanion.insert(number: 54, title: 'This Is the Way'),
   SongsCompanion.insert(number: 55, title: 'Fear Them Not!'),
   SongsCompanion.insert(number: 56, title: 'Make the Truth Your Own'),
   SongsCompanion.insert(number: 57, title: 'Preaching to All Sorts of People'),
@@ -130,7 +170,7 @@ final List<SongsCompanion> _kSeedSongs = [
   SongsCompanion.insert(number: 64, title: 'Sharing Joyfully in the Harvest'),
   SongsCompanion.insert(number: 65, title: 'Move Ahead!'),
   SongsCompanion.insert(number: 66, title: 'Declare the Good News'),
-  SongsCompanion.insert(number: 67, title: '"Preach the Word"'),
+  SongsCompanion.insert(number: 67, title: 'Preach the Word'),
   SongsCompanion.insert(number: 68, title: 'Sowing Kingdom Seed'),
   SongsCompanion.insert(
     number: 69,
@@ -141,18 +181,18 @@ final List<SongsCompanion> _kSeedSongs = [
   SongsCompanion.insert(number: 72, title: 'Making Known the Kingdom Truth'),
   SongsCompanion.insert(number: 73, title: 'Grant Us Boldness'),
   SongsCompanion.insert(number: 74, title: 'Join in the Kingdom Song!'),
-  SongsCompanion.insert(number: 75, title: '"Here I Am! Send Me!"'),
+  SongsCompanion.insert(number: 75, title: 'Here I Am! Send Me!'),
   SongsCompanion.insert(number: 76, title: 'How Does It Make You Feel?'),
   SongsCompanion.insert(number: 77, title: 'Light in a Darkened World'),
-  SongsCompanion.insert(number: 78, title: '"Teaching the Word of God"'),
+  SongsCompanion.insert(number: 78, title: 'Teaching the Word of God'),
   SongsCompanion.insert(number: 79, title: 'Teach Them to Stand Firm'),
   SongsCompanion.insert(
     number: 80,
-    title: '"Taste and See That Jehovah Is Good"',
+    title: 'Taste and See That Jehovah Is Good',
   ),
   SongsCompanion.insert(number: 81, title: 'The Life of a Pioneer'),
-  SongsCompanion.insert(number: 82, title: '"Let Your Light Shine"'),
-  SongsCompanion.insert(number: 83, title: '"From House to House"'),
+  SongsCompanion.insert(number: 82, title: 'Let Your Light Shine'),
+  SongsCompanion.insert(number: 83, title: 'From House to House'),
   SongsCompanion.insert(number: 84, title: 'Reaching Out'),
   SongsCompanion.insert(number: 85, title: 'Welcome One Another'),
   SongsCompanion.insert(number: 86, title: 'We Must Be Taught'),
@@ -174,23 +214,23 @@ final List<SongsCompanion> _kSeedSongs = [
   SongsCompanion.insert(number: 99, title: 'Myriads of Brothers'),
   SongsCompanion.insert(number: 100, title: 'Receive Them With Hospitality'),
   SongsCompanion.insert(number: 101, title: 'Working Together in Unity'),
-  SongsCompanion.insert(number: 102, title: '"Assist Those Who Are Weak"'),
+  SongsCompanion.insert(number: 102, title: 'Assist Those Who Are Weak'),
   SongsCompanion.insert(number: 103, title: 'Shepherds\u2014Gifts in Men'),
   SongsCompanion.insert(number: 104, title: "God's Gift of Holy Spirit"),
-  SongsCompanion.insert(number: 105, title: '"God Is Love"'),
+  SongsCompanion.insert(number: 105, title: 'God Is Love'),
   SongsCompanion.insert(number: 106, title: 'Cultivating the Quality of Love'),
   SongsCompanion.insert(number: 107, title: 'The Divine Pattern of Love'),
   SongsCompanion.insert(number: 108, title: "God's Loyal Love"),
   SongsCompanion.insert(number: 109, title: 'Love Intensely From the Heart'),
-  SongsCompanion.insert(number: 110, title: '"The Joy of Jehovah"'),
+  SongsCompanion.insert(number: 110, title: 'The Joy of Jehovah'),
   SongsCompanion.insert(number: 111, title: 'Our Reasons for Joy'),
   SongsCompanion.insert(number: 112, title: 'Jehovah, God of Peace'),
   SongsCompanion.insert(number: 113, title: 'Our Possession of Peace'),
-  SongsCompanion.insert(number: 114, title: '"Exercise Patience"'),
+  SongsCompanion.insert(number: 114, title: 'Exercise Patience'),
   SongsCompanion.insert(number: 115, title: 'Gratitude for Divine Patience'),
   SongsCompanion.insert(number: 116, title: 'The Power of Kindness'),
   SongsCompanion.insert(number: 117, title: 'The Quality of Goodness'),
-  SongsCompanion.insert(number: 118, title: '"Give Us More Faith"'),
+  SongsCompanion.insert(number: 118, title: 'Give Us More Faith'),
   SongsCompanion.insert(number: 119, title: 'We Must Have Faith'),
   SongsCompanion.insert(number: 120, title: "Imitate Christ's Mildness"),
   SongsCompanion.insert(number: 121, title: 'We Need Self-Control'),
@@ -200,7 +240,7 @@ final List<SongsCompanion> _kSeedSongs = [
     title: 'Loyally Submitting to Theocratic Order',
   ),
   SongsCompanion.insert(number: 124, title: 'Ever Loyal'),
-  SongsCompanion.insert(number: 125, title: '"Happy Are the Merciful!"'),
+  SongsCompanion.insert(number: 125, title: 'Happy Are the Merciful!'),
   SongsCompanion.insert(
     number: 126,
     title: 'Stay Awake, Stand Firm, Grow Mighty',
@@ -209,15 +249,15 @@ final List<SongsCompanion> _kSeedSongs = [
   SongsCompanion.insert(number: 128, title: 'Enduring to the End'),
   SongsCompanion.insert(number: 129, title: 'We Will Keep Enduring'),
   SongsCompanion.insert(number: 130, title: 'Be Forgiving'),
-  SongsCompanion.insert(number: 131, title: '"What God Has Yoked Together"'),
+  SongsCompanion.insert(number: 131, title: 'What God Has Yoked Together'),
   SongsCompanion.insert(number: 132, title: 'Now We Are One'),
   SongsCompanion.insert(number: 133, title: 'Worship Jehovah During Youth'),
   SongsCompanion.insert(number: 134, title: 'Children Are a Trust From God'),
   SongsCompanion.insert(
     number: 135,
-    title: 'Jehovah\'s Warm Appeal: "Be Wise, My Son"',
+    title: 'Jehovah\'s Warm Appeal: Be Wise, My Son',
   ),
-  SongsCompanion.insert(number: 136, title: '"A Perfect Wage" From Jehovah'),
+  SongsCompanion.insert(number: 136, title: 'A Perfect Wage From Jehovah'),
   SongsCompanion.insert(
     number: 137,
     title: 'Faithful Women, Christian Sisters',
@@ -233,7 +273,7 @@ final List<SongsCompanion> _kSeedSongs = [
   ),
   SongsCompanion.insert(number: 144, title: 'Keep Your Eyes on the Prize!'),
   SongsCompanion.insert(number: 145, title: "God's Promise of Paradise"),
-  SongsCompanion.insert(number: 146, title: '"Making All Things New"'),
+  SongsCompanion.insert(number: 146, title: 'Making All Things New'),
   SongsCompanion.insert(number: 147, title: 'Life Everlasting Is Promised'),
   SongsCompanion.insert(number: 148, title: 'Jehovah Provides Escape'),
   SongsCompanion.insert(number: 149, title: 'A Victory Song'),
@@ -248,9 +288,10 @@ final List<SongsCompanion> _kSeedSongs = [
   SongsCompanion.insert(number: 155, title: 'Our Joy Eternally'),
   SongsCompanion.insert(number: 156, title: 'With Eyes of Faith'),
   SongsCompanion.insert(number: 157, title: 'Peace at Last!'),
-  SongsCompanion.insert(number: 158, title: '"It Will Not Be Late!"'),
+  SongsCompanion.insert(number: 158, title: 'It Will Not Be Late!'),
   SongsCompanion.insert(number: 159, title: 'Give Jehovah Glory'),
-  SongsCompanion.insert(number: 160, title: '"Good News"!'),
+  SongsCompanion.insert(number: 160, title: 'Good News!'),
   SongsCompanion.insert(number: 161, title: 'To Do Your Will Is My Delight'),
   SongsCompanion.insert(number: 162, title: 'My Spiritual Need'),
+  SongsCompanion.insert(number: 163, title: 'Happy Are These Eyes'),
 ];

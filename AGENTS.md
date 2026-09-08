@@ -4,7 +4,7 @@
 
 ## How to Use This File
 
-This project uses a **multi-agent system** where Claude plays all 6 roles. All agents exist in a single context so they can cross-reference and consult each other seamlessly.
+This project uses a **multi-agent system** where Codex plays all 6 roles. All agents exist in a single context so they can cross-reference and consult each other seamlessly.
 
 **To activate a specific agent**, say: "as KS-PM, ..." or "KS-Dev, implement ..." or "switch to KS-QA"
 

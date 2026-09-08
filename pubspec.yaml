@@ -1,5 +1,5 @@
 name: jwsongbook
-description: Kingdom Songs Lyrics App — word-by-word synced lyrics for all 154 JW Kingdom Songs.
+description: Kingdom Songs Lyrics App — word-by-word synced lyrics for all 163 JW Kingdom Songs.
 publish_to: 'none'
 version: 0.1.0+1
 
@@ -13,7 +13,8 @@ dependencies:
 
   # ── Audio ────────────────────────────────────────────────────────────────
   just_audio: ^0.9.40
-  just_audio_background: ^0.0.1-beta.13
+  just_audio_background:
+    path: packages/just_audio_background
   audio_session: ^0.1.21
 
   # ── State management ─────────────────────────────────────────────────────
@@ -53,8 +54,7 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/lyrics/
-    - assets/audio/
+    - assets/branding/
 
   # Fonts are loaded from the system (SF Pro on iOS, Roboto on Android).
   # If we add a custom font later, declare it here.
