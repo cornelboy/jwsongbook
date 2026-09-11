@@ -19,20 +19,27 @@ class EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.appColors;
+    final textStyles = context.appText;
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 64, color: AppColors.textInactive),
+            Icon(icon, size: 64, color: colors.textInactive),
             const SizedBox(height: 16),
-            Text(title, style: AppTypography.bodyLarge, textAlign: TextAlign.center),
+            Text(
+              title,
+              style: textStyles.bodyLarge,
+              textAlign: TextAlign.center,
+            ),
             if (subtitle != null) ...[
               const SizedBox(height: 8),
               Text(
                 subtitle!,
-                style: AppTypography.bodyMedium,
+                style: textStyles.bodyMedium,
                 textAlign: TextAlign.center,
               ),
             ],

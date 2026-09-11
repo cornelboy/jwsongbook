@@ -4,10 +4,23 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+dependencies {
+    implementation("androidx.core:core:1.17.0")
+    implementation("androidx.media:media:1.7.0")
+}
+
 android {
     namespace = "com.example.jwsongbook"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
+
+    lint {
+        // The app only posts MediaSession notifications, which Android exempts
+        // from the Android 13 notification runtime permission behavior.
+        disable += "NotificationPermission"
+        // Flutter regenerates local.properties with Windows path separators.
+        disable += "PropertyEscape"
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

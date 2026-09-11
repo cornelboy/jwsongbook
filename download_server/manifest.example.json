@@ -3,6 +3,7 @@
   "songs": [
     {
       "number": 1,
+      "title": "Jehovah's Attributes",
       "audioUrl": "audio/001.mp3",
       "lyricsUrl": "lyrics/001.elrc",
       "audioSize": 5119230,
@@ -11,6 +12,7 @@
     },
     {
       "number": 2,
+      "title": "Jehovah Is Your Name",
       "audioUrl": "audio/002.mp3",
       "lyricsUrl": "lyrics/002.elrc",
       "audioSize": 6929363,
@@ -19,6 +21,7 @@
     },
     {
       "number": 3,
+      "title": "Our Strength, Our Hope, Our Confidence",
       "audioUrl": "audio/003.mp3",
       "lyricsUrl": "lyrics/003.elrc",
       "audioSize": 6715389,

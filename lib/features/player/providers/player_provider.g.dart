@@ -6,7 +6,7 @@ part of 'player_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$audioPlayerHash() => r'da4907d740d3974621d680b1ce2ac2a61956bb40';
+String _$audioPlayerHash() => r'7169755fb570d258df5128898d8acf29d6750a08';
 
 /// See also [audioPlayer].
 @ProviderFor(audioPlayer)
@@ -39,7 +39,7 @@ final playerPositionProvider = AutoDisposeStreamProvider<Duration>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef PlayerPositionRef = AutoDisposeStreamProviderRef<Duration>;
-String _$playerNotifierHash() => r'7843879a8e6a0c477678a0c30f6f8e150cc1d719';
+String _$playerNotifierHash() => r'b47f6cdc24244628491f625df5558c841a384537';
 
 /// See also [PlayerNotifier].
 @ProviderFor(PlayerNotifier)

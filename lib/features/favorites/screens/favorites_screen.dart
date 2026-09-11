@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,6 +11,7 @@ import 'package:jwsongbook/core/theme/app_typography.dart';
 import 'package:jwsongbook/data/database/app_database.dart';
 import 'package:jwsongbook/data/models/song_model.dart';
 import 'package:jwsongbook/data/repositories/songs_repository.dart';
+import 'package:jwsongbook/features/downloads/actions/song_download_actions.dart';
 import 'package:jwsongbook/features/downloads/providers/download_controller.dart';
 import 'package:jwsongbook/features/library/widgets/song_card.dart';
 import 'package:jwsongbook/features/player/providers/player_provider.dart';
@@ -19,6 +22,7 @@ class FavoritesScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.appColors;
     final favoritesAsync = ref.watch(_favoritesProvider);
     final currentSong =
         ref.watch(playerNotifierProvider.select((s) => s.currentSong));
@@ -37,38 +41,50 @@ class FavoritesScreen extends ConsumerWidget {
             ? EmptyState(
                 icon: Icons.favorite_outline,
                 title: 'No favorites yet',
-                subtitle: 'Tap the heart icon on a song to save it here.',
+                subtitle:
+                    'Open a song’s three-dot menu and choose Add to favorites.',
                 action: FilledButton.icon(
                   onPressed: () => context.go(AppRoutes.library),
                   icon: const Icon(Icons.library_music_outlined),
                   label: const Text('Browse songs'),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size(0, 48),
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
                 ),
               )
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _FavoritesHeader(count: songs.length),
-                  const Divider(height: 1, color: AppColors.divider),
+                  Divider(height: 1, color: colors.divider),
                   Expanded(
                     child: ListView.separated(
                       itemCount: songs.length,
                       padding: const EdgeInsets.only(bottom: 8),
-                      separatorBuilder: (_, __) => const Divider(
+                      separatorBuilder: (_, __) => Divider(
                         height: 1,
-                        color: AppColors.divider,
+                        color: colors.divider,
                         indent: 76,
                       ),
                       itemBuilder: (context, index) {
                         final song = songs[index];
+                        final downloadStatus =
+                            downloadState.statusFor(song.number);
                         return SongCard(
                           song: song,
                           isCurrentlyPlaying: currentSong?.id == song.id,
-                          downloadStatus: downloadState.statusFor(song.number),
-                          onTap: () => _playSong(song, context, ref),
-                          onDownloadTap: () => _openDownload(song, context),
-                          onFavoriteTap: () => ref
-                              .read(songsRepositoryProvider)
-                              .toggleFavorite(song),
+                          downloadStatus: downloadStatus,
+                          showDownloadedIndicator: false,
+                          onTap: () => unawaited(_playSong(song, context, ref)),
+                          onDownloadTap: () => _handleDownloadAction(
+                            song,
+                            context,
+                            ref,
+                          ),
                         );
                       },
                     ),
@@ -79,18 +95,50 @@ class FavoritesScreen extends ConsumerWidget {
     );
   }
 
-  void _playSong(Song song, BuildContext context, WidgetRef ref) {
+  Future<void> _playSong(
+    Song song,
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
     if (!song.hasLocalAudio) {
-      _openDownload(song, context);
+      await downloadAndPlaySong(
+        context: context,
+        ref: ref,
+        song: song,
+      );
       return;
     }
 
-    ref.read(playerNotifierProvider.notifier).playSong(song);
-    context.go(AppRoutes.nowPlaying);
+    if (context.mounted) {
+      supersedePendingDownloadPlayback(ref);
+      unawaited(context.push(AppRoutes.nowPlayingSongPath(song.number)));
+    }
   }
 
-  void _openDownload(Song song, BuildContext context) {
-    context.go(AppRoutes.downloadPath(song.number));
+  Future<void> _downloadSong(
+    Song song,
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    await downloadSongAndMaybePlay(
+      context: context,
+      ref: ref,
+      song: song,
+      playAfterDownload: false,
+    );
+  }
+
+  void _handleDownloadAction(
+    Song song,
+    BuildContext context,
+    WidgetRef ref,
+  ) {
+    final status = ref.read(downloadControllerProvider).statusFor(song.number);
+    if (status.isDownloading) {
+      ref.read(downloadControllerProvider.notifier).pauseSong(song.number);
+      return;
+    }
+    unawaited(_downloadSong(song, context, ref));
   }
 }
 
@@ -101,7 +149,7 @@ class _FavoritesHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label = count == 1 ? 'song saved' : 'songs saved';
+    final label = count == 1 ? '1 favorite' : '$count favorites';
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(
@@ -110,13 +158,7 @@ class _FavoritesHeader extends StatelessWidget {
         AppConstants.screenPaddingH,
         12,
       ),
-      child: Row(
-        children: [
-          const Icon(Icons.favorite, size: 16, color: AppColors.primaryPurple),
-          const SizedBox(width: 6),
-          Text('$count $label', style: AppTypography.caption),
-        ],
-      ),
+      child: Text(label, style: context.appText.caption),
     );
   }
 }

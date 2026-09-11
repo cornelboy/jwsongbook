@@ -1,4 +1,8 @@
-# jwsongbook
+# Kingdom Songs Lyrics App
+
+The Flutter mobile app lives at the repository root. Song catalog and media
+updates can be managed with the separate local
+[Content Manager](admin_dashboard/README.md).
 
 A new Flutter project.
 

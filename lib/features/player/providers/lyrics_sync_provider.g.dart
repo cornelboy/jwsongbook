@@ -26,7 +26,7 @@ final currentSongLyricsProvider =
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef CurrentSongLyricsRef = AutoDisposeFutureProviderRef<SyncedLyrics>;
-String _$syncCursorHash() => r'1ce4d7874ee3af70a8adb35653e647497d793a04';
+String _$syncCursorHash() => r'fd8c9302a64941078eae1eeebc0b3dcaab3f7a60';
 
 /// Derives the active [SyncCursor] from the playback position and the loaded
 /// lyrics.  Rebuilds on every position tick (~60 fps via the Ticker in the

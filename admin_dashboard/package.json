@@ -1,0 +1,17 @@
+{
+  "name": "jw-songs-content-manager",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.mjs",
+    "sync-catalog": "node scripts/sync-bundled-catalog.mjs",
+    "test": "node --test --test-isolation=none"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "lucide": "^0.468.0"
+  }
+}

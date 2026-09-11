@@ -1,116 +1,111 @@
-# Lyrics Sync Tool
+# Lyrics Timing Studio
 
-Open `lyrics_sync.html` in a browser to create `.elrc` files from plain lyrics.
+Open `tools/lyrics_sync.html` in a browser to create word-timed Enhanced LRC
+files. Keep `lyrics_sync_engine.js` and `lyrics_sync.js` beside the HTML file.
 
-The tool uses a professional line timing workflow:
+## Word Timing Workflow
 
-- Mark when each line starts.
-- Mark when each line ends.
-- Leave natural gaps between line end and the next line start for instrumentals, rests, and breathing space.
-- Let the tool estimate word timing inside each line from the line's start and end.
-- For difficult lines, tap exact word timings with `W`.
-- Preview with a small lead offset so lyrics appear slightly before they are sung.
+1. Choose the matching MP3 from the download catalog's `audio/` folder.
+2. Enter the song number and title.
+3. Paste plain lyrics with one sung line per row and a blank line between parts.
+   Each blank-line break becomes a part in the app's “Part X of Y” indicator.
+   Adding or removing only these breaks preserves existing word timestamps.
+   Leave out verse numbers,
+   section labels, timestamp tags, and instrumental labels.
+4. Select **Prepare words**. Song setup can then collapse to leave room for timing.
+5. Press **Play** in the player fixed at the bottom of the screen.
+6. Press **W**, or tap **Mark word**, at the beginning of each sung word.
+   The selected word card and the button show the next word to mark.
+7. Press **E**, or **End line**, when the final word finishes, including its
+   held note. The next line is selected automatically.
+8. Continue through the song, replay it in **Playback preview**, and correct
+   any inaccurate words.
+9. Select **Export .elrc**, resolve any listed timing issues, then download.
+   Song 3 downloads as `003.elrc`.
+10. Upload the file to the matching song in the content dashboard. Publishing
+    writes it under `lyrics/NNN.elrc` and updates the local manifest. Commit
+    and push the download repository separately to deliver it to the app.
 
-## Basic Workflow
+The first word's tap sets the line start automatically. Every word must be
+marked; the tool does not distribute or estimate word timings. Export requires
+every word and line end, increasing timestamps, no overlapping lines, and
+timings within the loaded audio's duration.
 
-1. Open `tools/lyrics_sync.html`.
-2. Choose the matching MP3 from `assets/audio`.
-3. Enter the song number, for example `1`.
-4. Enter the title.
-5. Keep `Preview lead` at `300 ms` unless you want a different feel.
-6. Paste plain lyrics with one sung lyric line per row.
-7. Click `Prepare lines`.
-8. Press play on the audio.
-9. Press `S` exactly when the current lyric line starts.
-10. Press `E` exactly when the current lyric line ends.
-11. Repeat until all lines are complete.
-12. Replay the song and watch the `Live Preview` section.
-13. Fix any bad line by clicking that line, rewinding, then marking its start/end again.
-14. Click `Generate .elrc`.
-15. Download the file and place it in `assets/lyrics`, for example `001.elrc`.
+## Player And Controls
 
-## Keyboard Shortcuts
+Audio controls stay together with the timing buttons at the bottom, including
+while you scroll through the song or edit words. The controls include play/pause,
+a seek slider, three-second rewind/forward, and 0.5×, 0.75×, 0.85×, or normal speed.
 
-- `S`: mark the start of the current line and the first word.
-- `E`: mark the end of the current line.
-- `W`: mark the next word in the selected line.
-- `Space` or `Enter`: mark the current line's end and the next line's start at the same timestamp.
-- `Backspace`: undo the previous timing action.
-- `Left Arrow`: rewind the audio by 3 seconds.
+| Key | Action |
+| --- | --- |
+| W | Mark the selected word, then select the following word |
+| E | Mark the final word's end and move to the next line |
+| N | End the current line and mark the next line's first word together |
+| Space / P | Play or pause |
+| Left / Right Arrow | Seek backward / forward three seconds |
+| Backspace | Undo the last timing action |
 
-## How To Handle Instrumentals
+Shortcuts do not run while typing in fields or while the export dialog is open.
+Space and Enter on a focused button retain their normal button activation.
+Holding a timing key does not record repeated marks.
 
-Do not add a fake lyric line for instrumental music.
+Tap timing is captured on the initial pointer press. Playback speed changes do
+not scale exported timestamps: the tool always records the audio position.
 
-Instead:
+## Gaps And Held Notes
 
-1. Press `E` when the previous lyric line finishes.
-2. Wait while the instrumental plays.
-3. Press `S` when the next lyric line starts.
+For an instrumental or breathing gap, finish the previous line with **E**, wait,
+and press **W** when the next line's first word begins. The gap is preserved.
 
-That gap is preserved naturally because the generated `.elrc` has no lyric line during that time.
+For a transition with no gap, use **N / Next line now** when the next line begins.
+This records its first word as well as the previous line's end. The following
+**W** tap records the next line's second word.
 
-## How To Handle Slow Final Lines
+Hold off on **End line** until the final sung word has actually finished.
+The exported trailing timestamp preserves its full duration.
 
-For lines that slow down at the end, the end timestamp matters.
+## Correcting A Word Or Line
 
-Example:
+Select a line from **Song lines**, then select the word card to correct.
+Selection does not overwrite timestamps. Seek back, replay, and press **W**
+at the right moment. Corrections must stay between neighbouring timestamps.
 
-```text
-With joy and with zeal, we will proclaim.
+**Retake line** clears that line's words and end, pauses audio, and rewinds to
+two seconds before its previous start. Press Play to record it again.
+**Undo** restores the cleared timings or the most recent timing action.
+
+## Preview And Drafts
+
+The default preview lead is **300 ms**. It advances only the visual preview;
+the exported file retains the actual tapped audio positions. Choose **Off**
+to compare the preview directly with the recording.
+
+The tool saves lyrics, metadata, and timing progress in local browser storage
+when available. Reloading restores the draft; reselect the same audio file to
+continue. Audio itself and undo history are not stored. The saving indicator
+reports when storage is unavailable. Keep the page open in that case.
+
+A draft belongs to the current browser and page origin; opening the tool at
+a different URL, in another browser, or clearing browser storage does not
+carry that draft over. The previous line-focused tool had no autosave: keep
+any old working tab open until its work is exported.
+
+## Mobile Layout
+
+The editor stacks into one column, uses tappable word cards, and keeps playback
+and timing controls at the bottom. Song lines appear below the timing workspace.
+The HTML and both JavaScript files must be accessible to the phone; the desktop
+dashboard's `127.0.0.1` address is not a phone-accessible address.
+
+## Timing Tests
+
+Run from the project root:
+
+```powershell
+node --test tools/lyrics_sync_engine.test.cjs
 ```
 
-Press `S` when `With` starts.
-Press `E` when `proclaim` actually finishes, not when the next musical beat starts.
-
-The tool will stretch the estimated word timings across that longer line duration, which improves slow endings.
-
-For the cleanest final line:
-
-1. Click the final line in the timing table.
-2. Rewind a few seconds before the line starts.
-3. Press `S` when the line starts. This also marks the first word.
-4. Press `W` as each remaining word is sung.
-5. Press `E` when the final held word fully finishes.
-
-When all words have `W` timestamps, the generated `.elrc` uses your exact word
-timings for that line instead of estimated timings.
-
-## How To Handle Lines With No Gap Between Them
-
-If the next line begins immediately after the current line, press `Space`.
-
-This does two things at once:
-
-- Ends the current line.
-- Starts the next line at the same timestamp.
-
-Use this for fast transitions.
-
-## Quality Checklist
-
-Before using a generated file in the app:
-
-1. Every lyric line should have both a start and an end time.
-2. Instrumentals should be represented by empty time gaps, not fake lyric text.
-3. The first sung line should not start during the intro music.
-4. The last line should end when the singing ends.
-5. Replay the audio inside the tool and watch `Live Preview` before downloading.
-6. If a line appears too early or too late, click that line and redo its start/end.
-7. If the line changes feel correct but the active word feels off, use exact word timing mode on that line.
-
-## Preview Lead
-
-The tool has a `Preview lead` field. The default is `300 ms`.
-
-This means the preview highlights the next lyric about 0.3 seconds before the
-audio reaches the timestamp. That usually feels better because singers need to
-see the next lyric just before singing it.
-
-The exported `.elrc` still stores the true audio timestamps you tapped. The app
-also applies a 300 ms visual lead during playback.
-
-## Current Limitation
-
-For normal lines, estimated word timing is usually enough after accurate line
-starts and ends. For expressive lines, use `W` to record exact word timings.
+Tests cover exact export, incomplete timings, short phrases, instrumental
+gaps, held notes, immediate line transitions, corrections, timestamp order,
+audio bounds, draft restoration, and Unicode lyrics.

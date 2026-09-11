@@ -5,12 +5,18 @@ import 'package:path/path.dart' as p;
 
 void main(List<String> args) async {
   var sourceRoot = Directory.current.path;
+  String? audioDirArg;
+  String? lyricsDirArg;
   var outputRoot = p.join(sourceRoot, 'build', 'download_server');
 
   for (var i = 0; i < args.length; i++) {
     switch (args[i]) {
       case '--source':
         sourceRoot = _readArgValue(args, ++i, '--source');
+      case '--audio-dir':
+        audioDirArg = _readArgValue(args, ++i, '--audio-dir');
+      case '--lyrics-dir':
+        lyricsDirArg = _readArgValue(args, ++i, '--lyrics-dir');
       case '--output':
         outputRoot = _readArgValue(args, ++i, '--output');
       case '--help':
@@ -25,8 +31,12 @@ void main(List<String> args) async {
     }
   }
 
-  final sourceAudioDir = Directory(p.join(sourceRoot, 'assets', 'audio'));
-  final sourceLyricsDir = Directory(p.join(sourceRoot, 'assets', 'lyrics'));
+  final sourceAudioDir = audioDirArg == null
+      ? _defaultAudioDir(sourceRoot)
+      : Directory(audioDirArg);
+  final sourceLyricsDir = lyricsDirArg == null
+      ? _defaultLyricsDir(sourceRoot)
+      : Directory(lyricsDirArg);
   if (!sourceAudioDir.existsSync()) {
     throw StateError('Audio directory not found: ${sourceAudioDir.path}');
   }
@@ -36,6 +46,7 @@ void main(List<String> args) async {
   final outputLyricsDir = Directory(p.join(outputRoot, 'lyrics'));
   outputAudioDir.createSync(recursive: true);
   outputLyricsDir.createSync(recursive: true);
+  final existingMetadata = _readExistingMetadata(outputDir);
 
   final audioFiles = sourceAudioDir
       .listSync()
@@ -51,17 +62,21 @@ void main(List<String> args) async {
 
     final paddedNumber = number.toString().padLeft(3, '0');
     final targetAudio = File(p.join(outputAudioDir.path, '$paddedNumber.mp3'));
-    audioFile.copySync(targetAudio.path);
+    _copyIfDifferent(audioFile, targetAudio);
 
     final lyricsFile = File(p.join(sourceLyricsDir.path, '$paddedNumber.elrc'));
     File? targetLyrics;
     if (lyricsFile.existsSync()) {
       targetLyrics = File(p.join(outputLyricsDir.path, '$paddedNumber.elrc'));
-      lyricsFile.copySync(targetLyrics.path);
+      _copyIfDifferent(lyricsFile, targetLyrics);
     }
 
+    final metadata = existingMetadata[number];
     songs.add({
       'number': number,
+      if (metadata?['title'] case final String title) 'title': title,
+      if (metadata?['durationMs'] case final int durationMs)
+        'durationMs': durationMs,
       'audioUrl': 'audio/$paddedNumber.mp3',
       if (targetLyrics != null) 'lyricsUrl': 'lyrics/$paddedNumber.elrc',
       'audioSize': targetAudio.lengthSync(),
@@ -84,6 +99,52 @@ void main(List<String> args) async {
   stdout.writeln('Manifest: ${manifestFile.path}');
 }
 
+Map<int, Map<String, Object?>> _readExistingMetadata(Directory outputDir) {
+  final manifestFile = File(p.join(outputDir.path, 'manifest.json'));
+  if (!manifestFile.existsSync()) return const {};
+
+  try {
+    final decoded = jsonDecode(manifestFile.readAsStringSync());
+    if (decoded is! Map<String, Object?>) return const {};
+    final songs = decoded['songs'];
+    if (songs is! List<Object?>) return const {};
+    final metadata = <int, Map<String, Object?>>{};
+    for (final item in songs) {
+      if (item is! Map<String, Object?>) continue;
+      final number = item['number'];
+      if (number is! int) continue;
+      final title = item['title'];
+      final durationMs = item['durationMs'];
+      metadata[number] = {
+        if (title is String && title.trim().isNotEmpty) 'title': title.trim(),
+        if (durationMs is int && durationMs >= 0) 'durationMs': durationMs,
+      };
+    }
+    return metadata;
+  } on FormatException {
+    return const {};
+  }
+}
+
+Directory _defaultAudioDir(String sourceRoot) {
+  final downloadRepoAudio = Directory(p.join(sourceRoot, 'audio'));
+  if (downloadRepoAudio.existsSync()) return downloadRepoAudio;
+  return Directory(p.join(sourceRoot, 'assets', 'audio'));
+}
+
+Directory _defaultLyricsDir(String sourceRoot) {
+  final downloadRepoLyrics = Directory(p.join(sourceRoot, 'lyrics'));
+  if (downloadRepoLyrics.existsSync()) return downloadRepoLyrics;
+  return Directory(p.join(sourceRoot, 'assets', 'lyrics'));
+}
+
+void _copyIfDifferent(File source, File target) {
+  final sourcePath = p.normalize(p.absolute(source.path));
+  final targetPath = p.normalize(p.absolute(target.path));
+  if (sourcePath == targetPath) return;
+  source.copySync(target.path);
+}
+
 String _readArgValue(List<String> args, int index, String name) {
   if (index >= args.length) {
     throw ArgumentError('Missing value for $name');
@@ -94,4 +155,5 @@ String _readArgValue(List<String> args, int index, String name) {
 void _printUsage() {
   stdout.writeln('Usage: dart run tools/prepare_download_server.dart');
   stdout.writeln('       [--source <repo-root>] [--output <directory>]');
+  stdout.writeln('       [--audio-dir <directory>] [--lyrics-dir <directory>]');
 }

@@ -1,7 +1,5 @@
 import 'package:drift/drift.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:jwsongbook/core/constants/app_constants.dart';
 import 'package:jwsongbook/data/database/app_database.dart';
 import 'package:jwsongbook/data/models/synced_lyrics_model.dart';
 import 'package:jwsongbook/data/parsers/elrc_parser.dart';
@@ -16,29 +14,13 @@ class LyricsRepository {
   final LyricsDao _dao;
   final AppDatabase _db;
 
-  /// Load synced lyrics for [song].
-  ///
-  /// Strategy:
-  ///   1. Check DB — if rows exist, build model from DB (fastest).
-  ///   2. Otherwise, try to load the bundled .elrc asset, parse it,
-  ///      persist to DB, then return the model.
-  ///   3. If no .elrc asset exists, return [SyncedLyrics] with empty lines.
+  /// Loads lyrics previously imported from the remote content catalog.
   Future<SyncedLyrics> loadForSong(Song song) async {
-    // 1. Try DB cache.
     final lines = await _dao.getLinesForSong(song.id);
     if (lines.isNotEmpty) {
       return _buildModelFromDb(lines);
     }
-
-    // 2. Try bundled asset.
-    final assetPath = AppConstants.lyricsFileName(song.number);
-    try {
-      final elrcContent = await rootBundle.loadString(assetPath);
-      return importElrcForSong(song, elrcContent);
-    } catch (_) {
-      // Asset not found, or .elrc file is malformed — no lyrics for this song.
-      return const SyncedLyrics(lines: []);
-    }
+    return const SyncedLyrics(lines: []);
   }
 
   Future<SyncedLyrics> importElrcForSong(Song song, String elrcContent) async {
@@ -56,6 +38,7 @@ class LyricsRepository {
       syncedLines.add(
         SyncedLine(
           index: line.lineIndex,
+          sectionIndex: line.sectionIndex,
           startMs: line.startMs,
           endMs: line.endMs,
           text: line.lineText,
@@ -72,7 +55,7 @@ class LyricsRepository {
         ),
       );
     }
-    return SyncedLyrics(lines: syncedLines);
+    return SyncedLyrics.fromLines(syncedLines);
   }
 
   Future<void> _persist(int songId, SyncedLyrics lyrics) async {
@@ -81,6 +64,7 @@ class LyricsRepository {
           (l) => LyricsLinesCompanion.insert(
             songId: songId,
             lineIndex: l.index,
+            sectionIndex: Value(l.sectionIndex),
             startMs: l.startMs,
             endMs: l.endMs,
             lineText: l.text,
@@ -93,7 +77,7 @@ class LyricsRepository {
       wordsByLineIndex[line.index] = line.words
           .map(
             (w) => LyricsWordsCompanion.insert(
-              lineId: 0, // replaced inside insertSongLyrics
+              lineId: 0,
               wordIndex: w.index,
               startMs: w.startMs,
               endMs: w.endMs,

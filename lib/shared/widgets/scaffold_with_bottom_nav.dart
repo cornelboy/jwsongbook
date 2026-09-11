@@ -1,10 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:jwsongbook/core/platform/lyrics_overlay_bubble.dart';
 import 'package:jwsongbook/core/router/app_router.dart';
 import 'package:jwsongbook/core/theme/app_colors.dart';
-import 'package:jwsongbook/shared/widgets/floating_lyrics_button.dart';
 import 'package:jwsongbook/shared/widgets/mini_player_bar.dart';
 
 class ScaffoldWithBottomNav extends ConsumerWidget {
@@ -20,22 +22,22 @@ class ScaffoldWithBottomNav extends ConsumerWidget {
       route: AppRoutes.library,
     ),
     _Tab(
-      label: 'Favorites',
-      icon: Icons.favorite_outline,
-      activeIcon: Icons.favorite,
-      route: AppRoutes.favorites,
-    ),
-    _Tab(
       label: 'Now Playing',
       icon: Icons.queue_music_outlined,
       activeIcon: Icons.queue_music,
       route: AppRoutes.nowPlaying,
     ),
     _Tab(
-      label: 'Settings',
-      icon: Icons.settings_outlined,
-      activeIcon: Icons.settings,
-      route: AppRoutes.settings,
+      label: 'Favorites',
+      icon: Icons.favorite_outline,
+      activeIcon: Icons.favorite,
+      route: AppRoutes.favorites,
+    ),
+    _Tab(
+      label: 'Playlists',
+      icon: Icons.playlist_play_outlined,
+      activeIcon: Icons.playlist_play,
+      route: AppRoutes.playlists,
     ),
   ];
 
@@ -49,40 +51,96 @@ class ScaffoldWithBottomNav extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final location = GoRouterState.of(context).uri.toString();
     final currentIndex = _currentIndex(context);
+    final isSongsPage = location.startsWith(AppRoutes.library);
+    final isNowPlayingPage = shouldSuppressFloatingLyricsForLocation(location);
+    final floatingLyricsEnabled =
+        ref.watch(floatingLyricsBubbleEnabledProvider);
+    final floatingLyricsExpanded =
+        ref.watch(floatingLyricsBubbleExpandedProvider);
+    final colors = context.appColors;
 
-    return Scaffold(
-      body: Stack(
+    return PopScope(
+      canPop: isSongsPage || Navigator.of(context).canPop(),
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+
+        if (context.canPop()) {
+          context.pop();
+          return;
+        }
+
+        if (!isSongsPage) {
+          context.go(AppRoutes.library);
+        }
+      },
+      child: Stack(
         children: [
-          child,
-          const FloatingLyricsButton(),
-        ],
-      ),
-      bottomNavigationBar: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Mini player sits above the nav bar; hidden on Now Playing tab.
-          const MiniPlayerBar(),
-          Container(
-            decoration: const BoxDecoration(
-              border: Border(
-                top: BorderSide(color: AppColors.divider, width: 0.5),
-              ),
+          Scaffold(
+            body: Stack(
+              children: [
+                child,
+                ExternalLyricsBubbleSync(
+                  suppressWhileForeground: isNowPlayingPage,
+                ),
+              ],
             ),
-            child: NavigationBar(
-              selectedIndex: currentIndex,
-              onDestinationSelected: (i) => context.go(_tabs[i].route),
-              destinations: _tabs
-                  .map(
-                    (t) => NavigationDestination(
-                      icon: Icon(t.icon),
-                      selectedIcon: Icon(t.activeIcon),
-                      label: t.label,
+            bottomNavigationBar: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Mini player sits above the nav bar; hidden on Now Playing tab.
+                const MiniPlayerBar(),
+                Container(
+                  decoration: BoxDecoration(
+                    border: Border(
+                      top: BorderSide(color: colors.divider, width: 0.5),
                     ),
-                  )
-                  .toList(),
+                  ),
+                  child: NavigationBar(
+                    selectedIndex: currentIndex,
+                    onDestinationSelected: (i) {
+                      final route = _tabs[i].route;
+                      context.go(route);
+                      if (route == AppRoutes.nowPlaying) {
+                        ref
+                            .read(
+                              miniPlayerAnimateExpansionProvider.notifier,
+                            )
+                            .state = false;
+                        ref.read(miniPlayerCollapsedProvider.notifier).state =
+                            false;
+                      }
+                    },
+                    destinations: _tabs
+                        .map(
+                          (t) => NavigationDestination(
+                            icon: Icon(t.icon),
+                            selectedIcon: Icon(t.activeIcon),
+                            label: t.label,
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ),
+              ],
             ),
           ),
+          if (floatingLyricsEnabled && floatingLyricsExpanded)
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () {
+                  ref
+                      .read(floatingLyricsBubbleExpandedProvider.notifier)
+                      .state = false;
+                  unawaited(
+                    ref.read(lyricsOverlayBubbleProvider).collapseBubble(),
+                  );
+                },
+                child: const SizedBox.expand(),
+              ),
+            ),
         ],
       ),
     );

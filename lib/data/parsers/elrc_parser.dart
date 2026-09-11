@@ -18,15 +18,23 @@ import 'package:jwsongbook/data/models/synced_lyrics_model.dart';
 /// Throws [ElrcParseException] if the file is malformed.
 abstract final class ElrcParser {
   static final _lineTimestampRe = RegExp(r'^\[(\d{2}):(\d{2})\.(\d{2})\]');
-  static final _wordTimestampRe = RegExp(r'<(\d{2}):(\d{2})\.(\d{2})>([^<\[]*)?');
+  static final _wordTimestampRe =
+      RegExp(r'<(\d{2}):(\d{2})\.(\d{2})>([^<\[]*)?');
   static final _metadataRe = RegExp(r'^\[(ti|ar|al|by|offset):(.+)\]$');
 
   static SyncedLyrics parse(String content) {
-    final rawLines = content.split('\n').map((l) => l.trim()).toList();
+    final rawLines = content.split('\n');
     final syncedLines = <SyncedLine>[];
+    var sectionIndex = 0;
+    var hasLyricsInSection = false;
+    var hasPendingSectionBreak = false;
 
-    for (final rawLine in rawLines) {
-      if (rawLine.isEmpty) continue;
+    for (final sourceLine in rawLines) {
+      final rawLine = sourceLine.trim();
+      if (rawLine.isEmpty) {
+        if (hasLyricsInSection) hasPendingSectionBreak = true;
+        continue;
+      }
       if (_metadataRe.hasMatch(rawLine)) continue; // skip [ti:...] etc.
 
       final lineMatch = _lineTimestampRe.firstMatch(rawLine);
@@ -40,21 +48,29 @@ abstract final class ElrcParser {
       final words = _parseWords(rest);
       if (words.isEmpty) continue;
 
+      if (hasPendingSectionBreak) {
+        sectionIndex++;
+        hasPendingSectionBreak = false;
+        hasLyricsInSection = false;
+      }
+
       final lineEndMs = words.last.endMs;
       final lineText = words.map((w) => w.text.trim()).join(' ');
 
       syncedLines.add(
         SyncedLine(
           index: syncedLines.length,
+          sectionIndex: sectionIndex,
           startMs: lineStartMs,
           endMs: lineEndMs,
           text: lineText,
           words: words,
         ),
       );
+      hasLyricsInSection = true;
     }
 
-    return SyncedLyrics(lines: syncedLines);
+    return SyncedLyrics.fromLines(syncedLines);
   }
 
   static List<SyncedWord> _parseWords(String segment) {
@@ -70,9 +86,8 @@ abstract final class ElrcParser {
       if (rawText.isEmpty) continue;
 
       // endMs: start of next word, or startMs + a generous 500 ms for last word.
-      final endMs = i + 1 < matches.length
-          ? _matchToMs(matches[i + 1])
-          : startMs + 500;
+      final endMs =
+          i + 1 < matches.length ? _matchToMs(matches[i + 1]) : startMs + 500;
 
       words.add(
         SyncedWord(

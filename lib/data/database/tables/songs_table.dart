@@ -1,16 +1,14 @@
 import 'package:drift/drift.dart';
 
-/// One row per Kingdom Song (1–162).
+/// One row per Kingdom Song. The catalog can grow without a schema change.
 ///
-/// Audio and lyrics files are bundled as app assets and referenced by
-/// [AppConstants.audioFileName] / [AppConstants.lyricsFileName]. This table
-/// tracks whether a song's audio has been cached to the filesystem for
-/// offline playback (relevant if we later move to a download model).
+/// Media is downloaded from the remote content catalog. This table tracks
+/// whether a song's audio is available locally for offline playback.
 class Songs extends Table {
   /// Internal auto-increment PK. Use [number] for domain identity.
   IntColumn get id => integer().autoIncrement()();
 
-  /// Official song number, 1–162. Unique and indexed.
+  /// Official positive song number. Unique and indexed.
   IntColumn get number => integer().unique()();
 
   /// Official song title (e.g. "Jehovah Is Your Name").
@@ -20,16 +18,14 @@ class Songs extends Table {
   IntColumn get durationMs => integer().nullable()();
 
   /// Absolute path to the cached audio file on the device filesystem.
-  /// Null = not yet cached; app falls back to the bundled asset.
+  /// Null means the audio has not been downloaded on this device.
   TextColumn get audioFilePath => text().nullable()();
 
   /// True once the audio file has been written to local storage.
-  BoolColumn get isDownloaded =>
-      boolean().withDefault(const Constant(false))();
+  BoolColumn get isDownloaded => boolean().withDefault(const Constant(false))();
 
   /// Whether the user has hearted this song.
-  BoolColumn get isFavorited =>
-      boolean().withDefault(const Constant(false))();
+  BoolColumn get isFavorited => boolean().withDefault(const Constant(false))();
 
   /// Whether an .elrc file exists for this song (drives UI "synced" badge).
   BoolColumn get hasSyncedLyrics =>
@@ -40,9 +36,6 @@ class Songs extends Table {
 
   @override
   List<String> get customConstraints => const [
-        // ⚠️  Keep the upper bound in sync with AppConstants.totalSongs (162).
-        // SQLite DDL cannot reference Dart constants, so this is intentionally
-        // duplicated. If the song count ever changes, update both places.
-        'CONSTRAINT songs_number_positive CHECK (number BETWEEN 1 AND 162)',
+        'CONSTRAINT songs_number_positive CHECK (number > 0)',
       ];
 }

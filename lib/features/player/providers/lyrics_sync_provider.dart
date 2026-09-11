@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:jwsongbook/core/constants/app_constants.dart';
 import 'package:jwsongbook/data/models/synced_lyrics_model.dart';
 import 'package:jwsongbook/data/repositories/lyrics_repository.dart';
 import 'package:jwsongbook/features/player/providers/player_provider.dart';
@@ -6,9 +7,14 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'lyrics_sync_provider.g.dart';
 
-// Lead visual lyrics slightly ahead of the audio so the next line appears
-// before it is sung instead of feeling late.
-const int _lyricLeadMs = 300;
+/// True when the user has manually scrolled away from the live lyric line.
+///
+/// The player controls use this to offer a Sync action without putting the
+/// button over the lyrics.
+final lyricsFollowPausedProvider = StateProvider<bool>((ref) => false);
+
+/// Increment this value to ask the lyrics view to resume following playback.
+final lyricsFollowRequestProvider = StateProvider<int>((ref) => 0);
 
 /// Sync cursor — the currently active line + word indices.
 class SyncCursor {
@@ -58,7 +64,7 @@ SyncCursor syncCursor(Ref ref) {
 
   final playerState = ref.watch(playerNotifierProvider);
   final playbackPositionMs = playerState.positionMs;
-  final positionMs = playbackPositionMs + _lyricLeadMs;
+  final positionMs = playbackPositionMs + AppConstants.lyricVisualLeadMs;
 
   final lineIndex = lyrics.activeLineIndexAt(positionMs);
   if (lineIndex < 0) {

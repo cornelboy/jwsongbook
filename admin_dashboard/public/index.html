@@ -1,0 +1,231 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <title>JW Songs Content Manager</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">KS</div>
+          <div>
+            <strong>Content Manager</strong>
+            <span>Kingdom Songs</span>
+          </div>
+        </div>
+
+        <nav aria-label="Workspace">
+          <button class="nav-item active" type="button" data-view="catalog">
+            <i data-lucide="library"></i>
+            <span>Catalog</span>
+          </button>
+        </nav>
+
+        <div class="workspace-status">
+          <span class="status-dot" aria-hidden="true"></span>
+          <div>
+            <strong>Content workspace</strong>
+            <span id="workspacePath">Connecting...</span>
+          </div>
+        </div>
+      </aside>
+
+      <main>
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Catalog administration</p>
+            <h1>Song library</h1>
+          </div>
+          <div class="topbar-actions">
+            <button class="icon-button" id="refreshButton" type="button" title="Refresh catalog">
+              <i data-lucide="refresh-cw"></i>
+            </button>
+            <button class="primary-button" id="publishButton" type="button" disabled>
+              <i data-lucide="upload-cloud"></i>
+              <span>Publish changes</span>
+              <span class="button-count" id="publishCount">0</span>
+            </button>
+          </div>
+        </header>
+
+        <section class="stats" aria-label="Catalog summary">
+          <div class="stat">
+            <i data-lucide="music-2"></i>
+            <div><strong id="songCount">0</strong><span>Songs</span></div>
+          </div>
+          <div class="stat">
+            <i data-lucide="audio-lines"></i>
+            <div><strong id="audioCount">0</strong><span>Remote audio</span></div>
+          </div>
+          <div class="stat">
+            <i data-lucide="captions"></i>
+            <div><strong id="lyricsCount">0</strong><span>Remote lyrics</span></div>
+          </div>
+          <div class="stat draft-stat">
+            <i data-lucide="file-clock"></i>
+            <div><strong id="draftCount">0</strong><span>Unpublished</span></div>
+          </div>
+        </section>
+
+        <div class="content-grid">
+          <section class="catalog-panel" aria-labelledby="catalogHeading">
+            <div class="panel-toolbar">
+              <div class="search-field">
+                <i data-lucide="search"></i>
+                <input id="searchInput" type="search" placeholder="Search number or title" autocomplete="off">
+              </div>
+              <div class="segmented-control" aria-label="Catalog filter">
+                <button class="selected" type="button" data-filter="all">All</button>
+                <button type="button" data-filter="draft">Drafts</button>
+                <button type="button" data-filter="incomplete">Needs content</button>
+              </div>
+              <button class="secondary-button" id="addSongButton" type="button">
+                <i data-lucide="plus"></i>
+                <span>Add song</span>
+              </button>
+            </div>
+
+            <div class="table-heading" id="catalogHeading">
+              <span>Song</span>
+              <span>Content</span>
+              <span>Version</span>
+            </div>
+            <div class="song-list" id="songList" aria-live="polite"></div>
+            <div class="empty-list hidden" id="emptyList">
+              <i data-lucide="search-x"></i>
+              <strong>No matching songs</strong>
+              <span>Adjust the search or filter.</span>
+            </div>
+          </section>
+
+          <aside class="editor-panel" aria-labelledby="editorTitle">
+            <div class="editor-empty" id="editorEmpty">
+              <i data-lucide="panel-right-open"></i>
+              <strong>Select a song to edit</strong>
+              <span>Or add the next song to the catalog.</span>
+              <button class="secondary-button" type="button" data-add-song>
+                <i data-lucide="plus"></i>
+                Add song
+              </button>
+            </div>
+
+            <form id="songForm" class="hidden" novalidate>
+              <div class="editor-header">
+                <div>
+                  <p class="eyebrow" id="editorMode">New catalog entry</p>
+                  <h2 id="editorTitle">Song details</h2>
+                </div>
+                <span class="draft-pill hidden" id="draftPill">Draft</span>
+              </div>
+
+              <div class="form-grid">
+                <label>
+                  <span>Song number</span>
+                  <input id="numberInput" name="number" type="number" min="1" step="1" required>
+                  <small>Must be unique.</small>
+                </label>
+                <label>
+                  <span>Version</span>
+                  <input id="versionInput" name="version" type="number" min="1" step="1" value="1" required>
+                  <small>Increase when replacing files.</small>
+                </label>
+                <label class="full-width">
+                  <span>Official title</span>
+                  <input id="titleInput" name="title" type="text" maxlength="200" required placeholder="Enter the official title">
+                </label>
+                <label class="full-width">
+                  <span>Duration</span>
+                  <input id="durationInput" name="duration" type="text" inputmode="numeric" placeholder="03:14">
+                  <small>Optional. Use minutes and seconds.</small>
+                </label>
+              </div>
+
+              <div class="assets-heading">
+                <div>
+                  <h3>Song files</h3>
+                  <p>Files are staged until you publish.</p>
+                </div>
+                <span id="assetSummary">No files</span>
+              </div>
+
+              <div class="asset-row" id="audioAsset">
+                <div class="asset-icon"><i data-lucide="audio-lines"></i></div>
+                <div class="asset-copy">
+                  <strong>Audio</strong>
+                  <span id="audioStatus">MP3, up to 100 MB</span>
+                  <audio id="audioPreview" class="hidden" controls preload="metadata"></audio>
+                </div>
+                <input id="audioInput" type="file" accept="audio/mpeg,.mp3" hidden>
+                <button class="icon-button" id="audioButton" type="button" title="Choose MP3">
+                  <i data-lucide="folder-open"></i>
+                </button>
+              </div>
+              <div class="upload-progress hidden" id="audioProgress"><span></span></div>
+
+              <div class="asset-row" id="lyricsAsset">
+                <div class="asset-icon"><i data-lucide="captions"></i></div>
+                <div class="asset-copy">
+                  <strong>Synced lyrics</strong>
+                  <span id="lyricsStatus">Enhanced LRC, word timestamps required</span>
+                </div>
+                <input id="lyricsInput" type="file" accept="text/plain,.elrc" hidden>
+                <button class="icon-button" id="lyricsButton" type="button" title="Choose ELRC">
+                  <i data-lucide="folder-open"></i>
+                </button>
+              </div>
+              <div class="upload-progress hidden" id="lyricsProgress"><span></span></div>
+
+              <div class="validation-message" id="validationMessage" role="status">
+                <i data-lucide="info"></i>
+                <span>A title is enough to publish a catalog-only song.</span>
+              </div>
+
+              <div class="editor-actions">
+                <button class="danger-button hidden" id="discardButton" type="button">
+                  <i data-lucide="trash-2"></i>
+                  Discard draft
+                </button>
+                <span class="action-spacer"></span>
+                <button class="secondary-button" id="resetButton" type="button">Reset</button>
+                <button class="primary-button" id="saveButton" type="submit">
+                  <i data-lucide="save"></i>
+                  Save draft
+                </button>
+              </div>
+            </form>
+          </aside>
+        </div>
+      </main>
+    </div>
+
+    <dialog id="publishDialog">
+      <div class="dialog-icon"><i data-lucide="upload-cloud"></i></div>
+      <h2>Publish catalog changes?</h2>
+      <p id="publishDescription">The staged manifest and song files will become available to the mobile app.</p>
+      <div class="publish-checks">
+        <span><i data-lucide="check"></i> Metadata validated</span>
+        <span><i data-lucide="check"></i> Existing catalog preserved</span>
+        <span><i data-lucide="check"></i> Manifest replaced last</span>
+      </div>
+      <div class="dialog-actions">
+        <button class="secondary-button" id="cancelPublishButton" type="button">Cancel</button>
+        <button class="primary-button" id="confirmPublishButton" type="button">
+          <i data-lucide="upload-cloud"></i>
+          Publish now
+        </button>
+      </div>
+    </dialog>
+
+    <div class="toast hidden" id="toast" role="status" aria-live="polite">
+      <i data-lucide="circle-check"></i>
+      <span></span>
+    </div>
+
+    <script src="/vendor/lucide.js"></script>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

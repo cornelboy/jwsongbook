@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,6 +13,12 @@ import 'package:jwsongbook/data/models/synced_lyrics_model.dart';
 import 'package:jwsongbook/features/player/providers/lyrics_sync_provider.dart';
 import 'package:jwsongbook/features/player/providers/player_provider.dart';
 
+final floatingLyricsPanelOpenProvider = StateProvider<bool>((ref) => false);
+
+/// Preserved Flutter reference for the floating lyrics design.
+///
+/// The production floating bubble is the Android overlay service so it can work
+/// outside the app. Keep this widget as the design source for that native view.
 class FloatingLyricsButton extends ConsumerStatefulWidget {
   const FloatingLyricsButton({super.key});
 
@@ -21,7 +29,6 @@ class FloatingLyricsButton extends ConsumerStatefulWidget {
 
 class _FloatingLyricsButtonState extends ConsumerState<FloatingLyricsButton> {
   Offset? _position;
-  bool _isPanelOpen = false;
   bool _isDragging = false;
   bool _isButtonPressed = false;
 
@@ -39,6 +46,7 @@ class _FloatingLyricsButtonState extends ConsumerState<FloatingLyricsButton> {
       playerNotifierProvider.select((state) => state.currentSong),
     );
     final location = GoRouterState.of(context).uri.toString();
+    final isPanelOpen = ref.watch(floatingLyricsPanelOpenProvider);
 
     if (song == null || location.startsWith(AppRoutes.nowPlaying)) {
       return const SizedBox.shrink();
@@ -78,21 +86,25 @@ class _FloatingLyricsButtonState extends ConsumerState<FloatingLyricsButton> {
 
             return Stack(
               children: [
-                if (_isPanelOpen)
+                if (isPanelOpen)
                   Positioned.fill(
                     child: GestureDetector(
                       behavior: HitTestBehavior.opaque,
-                      onTap: () => setState(() => _isPanelOpen = false),
+                      onTap: () => ref
+                          .read(floatingLyricsPanelOpenProvider.notifier)
+                          .state = false,
                       child: const SizedBox.expand(),
                     ),
                   ),
-                if (_isPanelOpen)
+                if (isPanelOpen)
                   Positioned(
                     left: panelPosition.dx,
                     top: panelPosition.dy,
                     width: panelWidth,
                     child: _FloatingLyricsPanel(
-                      onClose: () => setState(() => _isPanelOpen = false),
+                      onClose: () => ref
+                          .read(floatingLyricsPanelOpenProvider.notifier)
+                          .state = false,
                     ),
                   ),
                 AnimatedPositioned(
@@ -103,7 +115,8 @@ class _FloatingLyricsButtonState extends ConsumerState<FloatingLyricsButton> {
                   child: GestureDetector(
                     behavior: HitTestBehavior.translucent,
                     onTap: () {
-                      setState(() => _isPanelOpen = !_isPanelOpen);
+                      ref.read(floatingLyricsPanelOpenProvider.notifier).state =
+                          !isPanelOpen;
                     },
                     onTapDown: (_) {
                       setState(() => _isButtonPressed = true);
@@ -157,7 +170,7 @@ class _FloatingLyricsButtonState extends ConsumerState<FloatingLyricsButton> {
                             duration: const Duration(milliseconds: 120),
                             curve: Curves.easeOutCubic,
                             child: _FloatingLyricsIcon(
-                              isOpen: _isPanelOpen,
+                              isOpen: isPanelOpen,
                               isDragging: _isDragging,
                             ),
                           ),
@@ -231,6 +244,9 @@ class _FloatingLyricsIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.appColors;
+    final colorScheme = Theme.of(context).colorScheme;
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 160),
       curve: Curves.easeOutCubic,
@@ -238,14 +254,16 @@ class _FloatingLyricsIcon extends StatelessWidget {
       height: _FloatingLyricsButtonState._buttonSize,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        color: AppColors.primaryPurple,
+        color: colors.primaryPurple,
         border: Border.all(
-          color: isOpen ? Colors.white.withAlpha(190) : Colors.transparent,
+          color: isOpen
+              ? colorScheme.onPrimary.withAlpha(190)
+              : Colors.transparent,
           width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primaryPurple.withAlpha(isDragging ? 95 : 70),
+            color: colors.primaryPurple.withAlpha(isDragging ? 95 : 70),
             blurRadius: isDragging ? 22 : 16,
             offset: const Offset(0, 8),
           ),
@@ -256,9 +274,9 @@ class _FloatingLyricsIcon extends StatelessWidget {
           ),
         ],
       ),
-      child: const Icon(
+      child: Icon(
         Icons.lyrics_outlined,
-        color: AppColors.background,
+        color: colorScheme.onPrimary,
         size: 28,
       ),
     );
@@ -274,6 +292,7 @@ class _FloatingLyricsPanel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final playerState = ref.watch(playerNotifierProvider);
     final song = playerState.currentSong;
+    final colors = context.appColors;
 
     if (song == null) {
       return const SizedBox.shrink();
@@ -284,8 +303,8 @@ class _FloatingLyricsPanel extends ConsumerWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppColors.card,
-        border: Border.all(color: AppColors.primaryPurple.withAlpha(70)),
+        color: colors.card,
+        border: Border.all(color: colors.primaryPurple.withAlpha(70)),
         borderRadius: BorderRadius.circular(8),
         boxShadow: [
           BoxShadow(
@@ -332,6 +351,8 @@ class _PanelHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.appColors;
+
     return Row(
       children: [
         Container(
@@ -339,11 +360,11 @@ class _PanelHeader extends StatelessWidget {
           height: 38,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: AppColors.primaryPurple.withAlpha(36),
-            border: Border.all(color: AppColors.primaryPurple.withAlpha(100)),
+            color: colors.primaryPurple.withAlpha(36),
+            border: Border.all(color: colors.primaryPurple.withAlpha(100)),
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Text(song.paddedNumber, style: AppTypography.songNumber),
+          child: Text(song.paddedNumber, style: context.appText.songNumber),
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -354,12 +375,12 @@ class _PanelHeader extends StatelessWidget {
                 song.title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: AppTypography.bodyMedium.copyWith(
-                  color: AppColors.textHigh,
+                style: context.appText.bodyMedium.copyWith(
+                  color: colors.textHigh,
                   fontWeight: FontWeight.w700,
                 ),
               ),
-              const Text('Floating lyrics', style: AppTypography.caption),
+              Text('Floating lyrics', style: context.appText.caption),
             ],
           ),
         ),
@@ -367,7 +388,7 @@ class _PanelHeader extends StatelessWidget {
           tooltip: 'Close lyrics',
           onPressed: onClose,
           icon: const Icon(Icons.close, size: 18),
-          color: AppColors.textMedium,
+          color: colors.textMedium,
           visualDensity: VisualDensity.compact,
           constraints: const BoxConstraints.tightFor(width: 34, height: 34),
           padding: EdgeInsets.zero,
@@ -437,11 +458,13 @@ class _LyricLinePreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.appColors;
+
     return AnimatedDefaultTextStyle(
       duration: const Duration(milliseconds: 180),
       curve: Curves.easeOutCubic,
-      style: AppTypography.lyricsActive.copyWith(
-        color: isActive ? AppColors.primaryPurple : AppColors.textMedium,
+      style: context.appText.lyricsActive.copyWith(
+        color: isActive ? colors.primaryPurple : colors.textMedium,
         fontSize: isActive ? 24 : 22,
         fontWeight: isActive ? FontWeight.w800 : FontWeight.w600,
       ),
@@ -464,10 +487,12 @@ class _EmptyLyricsPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.appColors;
+
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppColors.card,
-        border: Border.all(color: AppColors.divider),
+        color: colors.card,
+        border: Border.all(color: colors.divider),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Padding(
@@ -476,7 +501,7 @@ class _EmptyLyricsPreview extends StatelessWidget {
           children: [
             const Icon(Icons.lyrics_outlined),
             const SizedBox(width: 12),
-            Expanded(child: Text(message, style: AppTypography.bodyMedium)),
+            Expanded(child: Text(message, style: context.appText.bodyMedium)),
           ],
         ),
       ),
@@ -504,7 +529,8 @@ class _PanelActions extends ConsumerWidget {
         IconButton.outlined(
           tooltip: 'Open full player',
           onPressed: () {
-            context.go(AppRoutes.nowPlaying);
+            ref.read(floatingLyricsPanelOpenProvider.notifier).state = false;
+            unawaited(context.push(AppRoutes.nowPlaying));
           },
           icon: const Icon(Icons.open_in_full, size: 18),
         ),

@@ -23,11 +23,61 @@ void main() {
 
       expect(asset, isNotNull);
       expect(asset!.number, 1);
+      expect(asset.hasAudio, isTrue);
       expect(asset.audioUrl.toString(), 'https://example.com/audio/001.mp3');
       expect(asset.lyricsUrl.toString(), 'https://example.com/lyrics/001.elrc');
       expect(asset.audioSizeBytes, 2450000);
       expect(asset.lyricsSizeBytes, 12000);
       expect(asset.version, 2);
+    });
+
+    test('parses catalog metadata without requiring downloadable audio', () {
+      final manifest = SongManifest.fromJsonString('''
+{
+  "songs": [
+    {
+      "number": 163,
+      "title": "A Newly Added Song",
+      "durationMs": 194000
+    }
+  ]
+}
+''');
+
+      final asset = manifest.assetFor(163)!;
+      expect(asset.title, 'A Newly Added Song');
+      expect(asset.durationMs, 194000);
+      expect(asset.hasCatalogMetadata, isTrue);
+      expect(asset.hasAudio, isFalse);
+    });
+
+    test('rejects duplicate song numbers', () {
+      expect(
+        () => SongManifest.fromJsonString('''
+{
+  "songs": [
+    {"number": 163, "title": "First"},
+    {"number": 163, "title": "Duplicate"}
+  ]
+}
+'''),
+        throwsFormatException,
+      );
+    });
+
+    test('rejects non-positive numbers and empty metadata', () {
+      expect(
+        () => SongManifest.fromJsonString(
+          '{"songs":[{"number":0,"title":"Invalid"}]}',
+        ),
+        throwsFormatException,
+      );
+      expect(
+        () => SongManifest.fromJsonString(
+          '{"songs":[{"number":163,"title":"  "}]}',
+        ),
+        throwsFormatException,
+      );
     });
 
     test('defaults version to 1', () {

@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:jwsongbook/data/models/synced_lyrics_model.dart';
 import 'package:jwsongbook/data/parsers/elrc_parser.dart';
 
 void main() {
@@ -63,6 +64,13 @@ void main() {
       expect(lyrics.activeLineIndexAt(12000), -1);
     });
 
+    test('nextLineIndexAfter returns the first upcoming lyric line', () {
+      final lyrics = ElrcParser.parse(sampleElrc);
+      expect(lyrics.nextLineIndexAfter(0), 0);
+      expect(lyrics.nextLineIndexAfter(6500), 1);
+      expect(lyrics.nextLineIndexAfter(12000), -1);
+    });
+
     test('explicit trailing timestamp marks line end before the next line', () {
       const elrc = '''
 [00:04.00]<00:04.00>First <00:05.00>line<00:06.00>
@@ -106,6 +114,48 @@ void main() {
       for (final line in lyrics.lines) {
         expect(line.text, isNot(contains('ti:')));
       }
+    });
+
+    test('blank lyric groups become distinct sections', () {
+      const elrc = '''
+[00:04.00]<00:04.00>First <00:05.00>stanza<00:06.00>
+
+[00:09.00]<00:09.00>Second <00:10.00>stanza<00:11.00>
+''';
+
+      final lyrics = ElrcParser.parse(elrc);
+      expect(lyrics.sections.length, 2);
+      expect(lyrics.sections.first.startMs, 0);
+      expect(lyrics.lines[0].sectionIndex, 0);
+      expect(lyrics.lines[1].sectionIndex, 1);
+      expect(lyrics.sectionAt(0)?.index, 0);
+      expect(lyrics.sectionAt(9500)?.index, 1);
+    });
+
+    test('large lyric gaps provide section markers for legacy data', () {
+      final lyrics = SyncedLyrics.fromLines(
+        const [
+          SyncedLine(
+            index: 0,
+            sectionIndex: 0,
+            startMs: 4000,
+            endMs: 6000,
+            text: 'First line',
+            words: [],
+          ),
+          SyncedLine(
+            index: 1,
+            sectionIndex: 0,
+            startMs: 10000,
+            endMs: 12000,
+            text: 'Second line',
+            words: [],
+          ),
+        ],
+      );
+
+      expect(lyrics.sections.length, 2);
+      expect(lyrics.sections.last.startMs, 10000);
     });
   });
 }

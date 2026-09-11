@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,6 +11,7 @@ import 'package:jwsongbook/core/theme/app_typography.dart';
 import 'package:jwsongbook/data/database/app_database.dart';
 import 'package:jwsongbook/data/models/song_model.dart';
 import 'package:jwsongbook/data/repositories/songs_repository.dart';
+import 'package:jwsongbook/features/downloads/actions/song_download_actions.dart';
 import 'package:jwsongbook/features/downloads/providers/download_controller.dart';
 import 'package:jwsongbook/features/library/widgets/song_card.dart';
 import 'package:jwsongbook/features/player/providers/player_provider.dart';
@@ -33,10 +36,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.appColors;
     final songsAsync = _query.isEmpty
         ? ref.watch(allSongsProvider)
         : ref.watch(searchSongsProvider(_query));
-    final recentSongsAsync = ref.watch(recentSongsProvider);
     final currentSong =
         ref.watch(playerNotifierProvider.select((s) => s.currentSong));
     final downloadState = ref.watch(downloadControllerProvider);
@@ -44,9 +47,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Kingdom Songs'),
+        toolbarHeight: 60,
+        title: const Text('JW Songs'),
+        actions: [
+          IconButton(
+            tooltip: 'Settings',
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () => context.push(AppRoutes.settings),
+          ),
+        ],
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(104),
+          preferredSize: const Size.fromHeight(68),
           child: Padding(
             padding: const EdgeInsets.fromLTRB(
               AppConstants.screenPaddingH,
@@ -54,31 +65,25 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               AppConstants.screenPaddingH,
               12,
             ),
-            child: Column(
-              children: [
-                TextField(
-                  controller: _searchController,
-                  onChanged: (v) => setState(() => _query = v.trim()),
-                  style: AppTypography.bodyLarge,
-                  decoration: InputDecoration(
-                    hintText: 'Search number or title',
-                    prefixIcon: const Icon(
-                      Icons.search,
-                      color: AppColors.textMedium,
-                    ),
-                    suffixIcon: hasQuery
-                        ? IconButton(
-                            icon: const Icon(Icons.close),
-                            color: AppColors.textMedium,
-                            tooltip: 'Clear search',
-                            onPressed: _clearSearch,
-                          )
-                        : null,
-                  ),
+            child: TextField(
+              controller: _searchController,
+              onChanged: (v) => setState(() => _query = v.trim()),
+              style: context.appText.bodyLarge,
+              decoration: InputDecoration(
+                hintText: 'Search number or title',
+                prefixIcon: Icon(
+                  Icons.search,
+                  color: colors.textMedium,
                 ),
-                const SizedBox(height: 10),
-                _LibraryStatusLine(query: _query, songsAsync: songsAsync),
-              ],
+                suffixIcon: hasQuery
+                    ? IconButton(
+                        icon: const Icon(Icons.close),
+                        color: colors.textMedium,
+                        tooltip: 'Clear search',
+                        onPressed: _clearSearch,
+                      )
+                    : null,
+              ),
             ),
           ),
         ),
@@ -99,29 +104,30 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             : ListView(
                 padding: const EdgeInsets.only(bottom: 8),
                 children: [
-                  if (!hasQuery)
-                    _RecentlyPlayedSection(
-                      songsAsync: recentSongsAsync,
-                      currentSong: currentSong,
-                      onSongTap: (song) => _playSong(song, context),
-                    ),
+                  _SongListHeading(
+                    title: hasQuery ? 'Search Results' : 'All Songs',
+                    count: songs.length,
+                  ),
                   ...List.generate(songs.length, (index) {
                     final song = songs[index];
+                    final downloadStatus = downloadState.statusFor(song.number);
                     return Column(
                       children: [
-                        if (index > 0 || !hasQuery)
-                          const Divider(
+                        if (index > 0)
+                          Divider(
                             height: 1,
-                            color: AppColors.divider,
+                            color: colors.divider,
                             indent: 72,
                           ),
                         SongCard(
                           song: song,
                           isCurrentlyPlaying: currentSong?.id == song.id,
-                          downloadStatus: downloadState.statusFor(song.number),
-                          onTap: () => _playSong(song, context),
-                          onDownloadTap: () => _openDownload(song, context),
-                          onFavoriteTap: () => _toggleFavorite(song),
+                          downloadStatus: downloadStatus,
+                          onTap: () => unawaited(_playSong(song, context)),
+                          onDownloadTap: () => _handleDownloadAction(
+                            song,
+                            context,
+                          ),
                         ),
                       ],
                     );
@@ -137,159 +143,68 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     setState(() => _query = '');
   }
 
-  void _playSong(Song song, BuildContext context) {
+  Future<void> _playSong(Song song, BuildContext context) async {
     if (!song.hasLocalAudio) {
-      _openDownload(song, context);
+      await downloadAndPlaySong(
+        context: context,
+        ref: ref,
+        song: song,
+      );
       return;
     }
 
-    ref.read(playerNotifierProvider.notifier).playSong(song);
-    context.go(AppRoutes.nowPlaying);
+    if (context.mounted) {
+      supersedePendingDownloadPlayback(ref);
+      unawaited(context.push(AppRoutes.nowPlayingSongPath(song.number)));
+    }
   }
 
-  void _openDownload(Song song, BuildContext context) {
-    context.go(AppRoutes.downloadPath(song.number));
+  Future<void> _downloadSong(Song song, BuildContext context) async {
+    await downloadSongAndMaybePlay(
+      context: context,
+      ref: ref,
+      song: song,
+      playAfterDownload: false,
+    );
   }
 
-  void _toggleFavorite(Song song) {
-    ref.read(songsRepositoryProvider).toggleFavorite(song);
+  void _handleDownloadAction(
+    Song song,
+    BuildContext context,
+  ) {
+    final status = ref.read(downloadControllerProvider).statusFor(song.number);
+    if (status.isDownloading) {
+      ref.read(downloadControllerProvider.notifier).pauseSong(song.number);
+      return;
+    }
+    unawaited(_downloadSong(song, context));
   }
 }
 
-class _LibraryStatusLine extends StatelessWidget {
-  const _LibraryStatusLine({required this.query, required this.songsAsync});
+class _SongListHeading extends StatelessWidget {
+  const _SongListHeading({required this.title, required this.count});
 
-  final String query;
-  final AsyncValue<List<Song>> songsAsync;
-
-  @override
-  Widget build(BuildContext context) {
-    final text = songsAsync.maybeWhen(
-      data: (songs) {
-        final label = songs.length == 1 ? 'song' : 'songs';
-        if (query.isEmpty) return '${songs.length} $label';
-        return '${songs.length} found for "$query"';
-      },
-      orElse: () => ' ',
-    );
-
-    return Row(
-      children: [
-        const Icon(Icons.library_music_outlined, size: 16),
-        const SizedBox(width: 6),
-        Text(text, style: AppTypography.caption),
-      ],
-    );
-  }
-}
-
-class _RecentlyPlayedSection extends StatelessWidget {
-  const _RecentlyPlayedSection({
-    required this.songsAsync,
-    required this.currentSong,
-    required this.onSongTap,
-  });
-
-  final AsyncValue<List<Song>> songsAsync;
-  final Song? currentSong;
-  final void Function(Song song) onSongTap;
+  final String title;
+  final int count;
 
   @override
   Widget build(BuildContext context) {
-    return songsAsync.maybeWhen(
-      data: (songs) {
-        if (songs.isEmpty) return const SizedBox.shrink();
+    final label = count == 1 ? '1 song' : '$count songs';
 
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(16, 6, 0, 14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Recently Played',
-                style: AppTypography.caption.copyWith(
-                  color: AppColors.textHigh,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 10),
-              SizedBox(
-                height: 92,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: songs.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 10),
-                  itemBuilder: (context, index) {
-                    final song = songs[index];
-                    return _RecentSongTile(
-                      song: song,
-                      isActive: currentSong?.id == song.id,
-                      onTap: () => onSongTap(song),
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-      orElse: () => const SizedBox.shrink(),
-    );
-  }
-}
-
-class _RecentSongTile extends StatelessWidget {
-  const _RecentSongTile({
-    required this.song,
-    required this.isActive,
-    required this.onTap,
-  });
-
-  final Song song;
-  final bool isActive;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        width: 172,
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: isActive
-              ? AppColors.primaryPurple.withAlpha(26)
-              : AppColors.surfaceElevated,
-          border: Border.all(
-            color: isActive
-                ? AppColors.primaryPurple.withAlpha(110)
-                : AppColors.divider,
-          ),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              song.paddedNumber,
-              style: AppTypography.songNumber.copyWith(
-                color:
-                    isActive ? AppColors.primaryPurple : AppColors.textMedium,
-              ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      child: Row(
+        children: [
+          Text(
+            title,
+            style: context.appText.bodyMedium.copyWith(
+              color: context.appColors.textHigh,
+              fontWeight: FontWeight.w700,
             ),
-            const SizedBox(height: 8),
-            Text(
-              song.title,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: AppTypography.bodyMedium.copyWith(
-                color: isActive ? AppColors.primaryPurple : AppColors.textHigh,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
+          ),
+          const Spacer(),
+          Text(label, style: context.appText.caption),
+        ],
       ),
     );
   }
@@ -297,10 +212,6 @@ class _RecentSongTile extends StatelessWidget {
 
 final allSongsProvider = StreamProvider<List<Song>>(
   (ref) => ref.watch(songsRepositoryProvider).watchAll(),
-);
-
-final recentSongsProvider = StreamProvider<List<Song>>(
-  (ref) => ref.watch(songsRepositoryProvider).watchRecentlyPlayed(),
 );
 
 final searchSongsProvider = StreamProvider.family<List<Song>, String>(

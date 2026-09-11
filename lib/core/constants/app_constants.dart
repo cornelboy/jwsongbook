@@ -1,21 +1,17 @@
 /// App-wide constants. No magic numbers outside this file.
 abstract final class AppConstants {
   // ── Catalogue ──────────────────────────────────────────────────────────
-  static const int totalSongs = 162;
-
-  /// Temporary bundled starter set while remote downloads are being wired.
-  static const Set<int> bundledSongNumbers = {1, 2, 3};
-
-  /// Optional remote manifest. Pass with:
+  /// Remote manifest. Override for local testing with:
   /// --dart-define=SONG_MANIFEST_URL=https://host.example/manifest.json
+  static const String defaultSongManifestUrl =
+      'https://cornelboy.github.io/jwsongbook-downloads/manifest.json';
+
   static const String songManifestUrl = String.fromEnvironment(
     'SONG_MANIFEST_URL',
+    defaultValue: defaultSongManifestUrl,
   );
 
   static const bool hasSongManifestUrl = songManifestUrl != '';
-
-  static bool isBundledSongNumber(int songNumber) =>
-      bundledSongNumbers.contains(songNumber);
 
   // ── Lyrics sync engine ────────────────────────────────────────────────
   /// How often the sync ticker fires (16 ms ≈ 60 fps).
@@ -27,6 +23,9 @@ abstract final class AppConstants {
   /// Seek debounce — wait this long after a seek before resuming sync.
   static const int seekDebounceMs = 150;
 
+  /// Visual lead applied to lyric highlighting so sung words do not feel late.
+  static const int lyricVisualLeadMs = 300;
+
   // ── UI ────────────────────────────────────────────────────────────────
   /// Number of lyric lines visible on screen at once (personal mode).
   static const int visibleLyricsLines = 6;
@@ -37,27 +36,30 @@ abstract final class AppConstants {
   /// Position of the active lyric line from the top of the visible area (0–1).
   static const double activeLyricLinePosition = 0.30;
 
-  /// Duration of the auto-scroll animation.
-  static const Duration autoScrollDuration = Duration(milliseconds: 350);
+  /// Time spent easing toward the next lyric before it becomes active.
+  static const Duration lyricPreScrollDuration = Duration(milliseconds: 700);
 
-  /// Easing curve for auto-scroll.
-  // ignore: constant_identifier_names
-  static const String autoScrollCurve = 'easeOut';
+  /// Short correction during ordinary following and after seeking.
+  static const Duration lyricFollowCatchUpDuration =
+      Duration(milliseconds: 220);
 
-  // ── Assets ────────────────────────────────────────────────────────────
-  static const String audioAssetPath = 'assets/audio';
-  static const String lyricsAssetPath = 'assets/lyrics';
+  /// Resume after reading nearby lyrics, but never pull back an off-screen line.
+  static const Duration lyricFollowResumeDelay = Duration(seconds: 5);
+  static const Duration lyricFollowResumeMinDuration =
+      Duration(milliseconds: 800);
+  static const Duration lyricFollowResumeMaxDuration =
+      Duration(milliseconds: 1200);
 
-  /// Naming convention: assets/audio/001.mp3, assets/lyrics/001.elrc
-  static String audioFileName(int songNumber) =>
-      '$audioAssetPath/${songNumber.toString().padLeft(3, '0')}.mp3';
-
-  static String lyricsFileName(int songNumber) =>
-      '$lyricsAssetPath/${songNumber.toString().padLeft(3, '0')}.elrc';
+  /// Safe lyric viewport excludes the decorative edge fades.
+  static const double lyricsTopFadeHeight = 72;
+  static const double lyricsBottomFadeHeight = 88;
+  static const double lyricsLineGap = 8;
+  static const double lyricsStanzaGap = 20;
+  static const double lyricsProjectionStanzaGap = 28;
 
   // ── Database ──────────────────────────────────────────────────────────
   static const String dbFileName = 'jwsongbook.db';
-  static const int dbCurrentVersion = 1;
+  static const int dbCurrentVersion = 3;
 
   // ── Spacing (8dp grid) ────────────────────────────────────────────────
   static const double spaceXS = 4;
