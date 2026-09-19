@@ -169,7 +169,6 @@ function selectSong(number, { revealOnNarrow = true } = {}) {
   elements.versionInput.value = Number(song.version) || 1;
   elements.titleInput.value = song.title ?? '';
   elements.durationInput.value = formatDuration(song.durationMs);
-  elements.audioOptimizationInput.checked = false;
   renderAssets(song);
   setValidation('Review the metadata and stage any replacement files.');
   renderList();
@@ -299,6 +298,9 @@ async function uploadSelected(kind) {
   const input = kind === 'audio' ? elements.audioInput : elements.lyricsInput;
   const file = input.files?.[0];
   if (!file) return;
+  // Saving the draft refreshes the editor, which resets this checkbox. Capture
+  // the user's explicit choice before that asynchronous refresh can occur.
+  const optimizeAudio = kind === 'audio' && elements.audioOptimizationInput.checked;
   const draft = await saveDraft({ announce: false });
   if (!draft) {
     input.value = '';
@@ -309,7 +311,6 @@ async function uploadSelected(kind) {
   progress.classList.remove('hidden');
   progress.firstElementChild.style.width = '0%';
   try {
-    const optimizeAudio = kind === 'audio' && elements.audioOptimizationInput.checked;
     const uploaded = await uploadFile(`/api/drafts/${draft.number}/${kind}`, file, (percentage) => {
       progress.firstElementChild.style.width = `${percentage}%`;
     }, { optimizeAudio });
