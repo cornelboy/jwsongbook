@@ -1,8 +1,6 @@
-import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jwsongbook/data/database/app_database.dart';
-import 'package:jwsongbook/data/models/synced_lyrics_model.dart';
 import 'package:jwsongbook/data/repositories/lyrics_repository.dart';
 
 void main() {

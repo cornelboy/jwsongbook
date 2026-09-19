@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 
 void main(List<String> args) async {
@@ -80,7 +81,9 @@ void main(List<String> args) async {
       'audioUrl': 'audio/$paddedNumber.mp3',
       if (targetLyrics != null) 'lyricsUrl': 'lyrics/$paddedNumber.elrc',
       'audioSize': targetAudio.lengthSync(),
+      'audioSha256': await _sha256File(targetAudio),
       if (targetLyrics != null) 'lyricsSize': targetLyrics.lengthSync(),
+      if (targetLyrics != null) 'lyricsSha256': await _sha256File(targetLyrics),
       'version': 1,
     });
   }
@@ -97,6 +100,10 @@ void main(List<String> args) async {
 
   stdout.writeln('Prepared ${songs.length} songs in ${outputDir.path}');
   stdout.writeln('Manifest: ${manifestFile.path}');
+}
+
+Future<String> _sha256File(File file) async {
+  return (await sha256.bind(file.openRead()).first).toString();
 }
 
 Map<int, Map<String, Object?>> _readExistingMetadata(Directory outputDir) {

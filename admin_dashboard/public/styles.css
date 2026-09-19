@@ -285,6 +285,25 @@ audio { width: 100%; height: 30px; margin-top: 8px; }
 .upload-progress { height: 3px; margin-bottom: 2px; overflow: hidden; background: var(--border); }
 .upload-progress span { display: block; width: 0; height: 100%; background: var(--purple); transition: width 120ms linear; }
 
+.optimization-control {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  margin: 8px 0 14px;
+  padding: 11px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-raised);
+  cursor: pointer;
+}
+.optimization-control input { width: 18px; min-height: 18px; margin-top: 1px; accent-color: var(--purple); }
+.optimization-control span, .optimization-control strong, .optimization-control small { display: block; }
+.optimization-control strong { color: var(--text-muted); font-size: 12px; }
+.optimization-control small { margin-top: 3px; color: var(--text-dim); font-size: 10px; line-height: 1.45; }
+.optimization-control.disabled { opacity: .62; cursor: not-allowed; }
+.optimization-result { margin: -6px 0 14px; color: var(--green); font-size: 11px; line-height: 1.45; }
+
 .validation-message { min-height: 42px; display: flex; align-items: flex-start; gap: 8px; margin: 16px 0; padding: 10px 11px; border-left: 2px solid var(--purple); color: var(--text-muted); background: var(--surface-raised); font-size: 11px; }
 .validation-message svg { width: 15px; height: 15px; flex: 0 0 auto; margin-top: 1px; color: var(--purple); }
 .validation-message.error { border-color: var(--red); color: var(--red); background: var(--red-soft); }

@@ -150,7 +150,7 @@ void main() {
       await insertSong(3);
 
       await database.songsDao.markPlayed(1);
-      await Future.delayed(const Duration(milliseconds: 10));
+      await Future<void>.delayed(const Duration(milliseconds: 10));
       await database.songsDao.markPlayed(2);
 
       final recent = await repository.watchRecentlyPlayed().first;
@@ -213,8 +213,7 @@ void main() {
       expect(first?.title, 'Original');
 
       // Update the title directly in DB.
-      await (database.update(database.songs)
-            ..where((s) => s.number.equals(1)))
+      await (database.update(database.songs)..where((s) => s.number.equals(1)))
           .write(const SongsCompanion(title: Value('Updated')));
 
       final updated = await stream.first;
@@ -367,7 +366,7 @@ void main() {
         '''
 {
   "songs": [
-    {"number": 163, "audioUrl": "audio/163.mp3"}
+    {"number": 163, "audioUrl": "audio/163.mp3", "audioSize": 12}
   ]
 }
 ''',
@@ -398,7 +397,7 @@ void main() {
 
     test('empty manifest with no catalog entries is a no-op', () async {
       final manifest = SongManifest.fromJsonString(
-        '{"songs":[{"number":1,"audioUrl":"a.mp3"}]}',
+        '{"songs":[{"number":1,"audioUrl":"a.mp3","audioSize":12}]}',
         baseUri: Uri.parse('https://example.com/m.json'),
       );
       await repository.syncRemoteCatalog(manifest);

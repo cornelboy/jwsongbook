@@ -10,7 +10,10 @@
 
 **Status:** ✅ In Progress — Coverage improved from 47.2% → **52.9%** (3075/5810 lines)
 
-**Current state:** 123 tests pass, coverage is 52.9% against an 80% target. Four critical files now have tests.
+**Current state (verified September 19, 2026):** 131 Flutter tests pass,
+and coverage is 52.9% (3075/5810 lines) against an 80% target. Four
+critical files now have tests; subsequent download-integrity work added
+manifest and downloader regression coverage.
 
 ### 1A. `songs_repository.dart` (205 lines) ✅ DONE
 
@@ -138,4 +141,4 @@ No device matrix results exist yet. Minimum matrix:
 ---
 
 *Plan generated alongside the full audit report on September 8, 2026*
-*Updated: September 8, 2026 — Risk 1 tasks 1A–1D complete. Coverage improved 47.2% → 52.9%.*
+*Updated: September 19, 2026 — `flutter test --coverage` passed with 131 tests; coverage remains 52.9% (3075/5810 lines).*

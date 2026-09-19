@@ -1,4 +1,5 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { spawn } from 'node:child_process';
 import { createReadStream, createWriteStream, existsSync } from 'node:fs';
 import {
   access,
@@ -46,27 +47,44 @@ const defaultBundledCatalogPath = path.resolve(
 const maxJsonBytes = 256 * 1024;
 const maxAudioBytes = 100 * 1024 * 1024;
 const maxLyricsBytes = 5 * 1024 * 1024;
-const defaultBaselineMaxSongNumber = 162;
+const defaultBaselineMaxSongNumber = 163;
+const csrfHeaderName = 'x-csrf-token';
+const loopbackHostnames = new Set(['127.0.0.1', '::1', 'localhost']);
+const targetAudioBitrate = 128000;
+const targetAudioSampleRate = 44100;
+const targetAudioChannels = 2;
+const mediaCommandTimeoutMs = 120000;
+const mediaCommandOutputLimit = 128 * 1024;
 
 export function createContentServer({
   contentRoot = defaultContentRoot,
   publicDir = defaultPublicDir,
   baselineMaxSongNumber = defaultBaselineMaxSongNumber,
   bundledCatalogPath = defaultBundledCatalogPath,
+  mediaTools = new FfmpegMediaTools(),
 } = {}) {
+  const csrfToken = randomBytes(32).toString('base64url');
   const workspace = new ContentWorkspace(
     path.resolve(contentRoot),
     validateBaselineMaxSongNumber(baselineMaxSongNumber),
     bundledCatalogPath == null ? null : path.resolve(bundledCatalogPath),
+    mediaTools,
   );
 
   return createServer(async (request, response) => {
     try {
       const url = new URL(request.url ?? '/', 'http://localhost');
       const method = request.method ?? 'GET';
+      validateRequestSource(request);
+      if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+        validateMutationRequest(request, csrfToken, url.pathname);
+      }
 
       if (method === 'GET' && url.pathname === '/api/state') {
-        return sendJson(response, 200, await workspace.state());
+        return sendJson(response, 200, {
+          ...(await workspace.state()),
+          csrfToken,
+        });
       }
 
       if (method === 'POST' && url.pathname === '/api/drafts') {
@@ -92,6 +110,7 @@ export function createContentServer({
           kind,
           request,
           fileName: request.headers['x-file-name'],
+          optimizeAudio: request.headers['x-optimize-audio'] === 'true',
         });
         return sendJson(response, 200, result);
       }
@@ -140,6 +159,7 @@ export class ContentWorkspace {
     root,
     baselineMaxSongNumber = defaultBaselineMaxSongNumber,
     bundledCatalogPath = defaultBundledCatalogPath,
+    mediaTools = new FfmpegMediaTools(),
   ) {
     this.root = root;
     this.baselineMaxSongNumber = validateBaselineMaxSongNumber(
@@ -151,6 +171,7 @@ export class ContentWorkspace {
     this.manifestPath = path.join(root, 'manifest.json');
     this.exampleManifestPath = path.join(root, 'manifest.example.json');
     this.bundledCatalogPath = bundledCatalogPath;
+    this.mediaTools = mediaTools;
     this.operation = Promise.resolve();
   }
 
@@ -167,6 +188,9 @@ export class ContentWorkspace {
     );
     return {
       contentRoot: this.root,
+      capabilities: {
+        audioOptimization: await this.mediaTools.available(),
+      },
       manifestExists: await exists(this.manifestPath),
       nextSongNumber: highestManagedNumber + 1,
       songs,
@@ -215,7 +239,7 @@ export class ContentWorkspace {
     });
   }
 
-  stageAsset({ number, kind, request, fileName }) {
+  stageAsset({ number, kind, request, fileName, optimizeAudio = false }) {
     return this.enqueue(async () => {
       const drafts = await this.loadDrafts();
       const draftIndex = drafts.findIndex((song) => song.number === number);
@@ -237,17 +261,45 @@ export class ContentWorkspace {
       const targetDir = path.join(this.stagingDir, config.folder);
       const target = path.join(targetDir, `${padded}${config.extension}`);
       await mkdir(targetDir, { recursive: true });
-      const upload = await writeRequestToFile(request, target, config.maxBytes);
+      if (optimizeAudio && kind !== 'audio') {
+        throw new HttpError(400, 'Only MP3 audio can be optimized.');
+      }
+      const source = optimizeAudio ? `${target}.source` : target;
+      const upload = await writeRequestToFile(request, source, config.maxBytes);
 
       try {
         if (kind === 'audio') {
-          await validateMp3(target);
+          await validateMp3(source);
+          const optimization = optimizeAudio
+            ? await optimizeUploadedAudio({
+                source,
+                target,
+                mediaTools: this.mediaTools,
+                originalSize: upload.size,
+              })
+            : null;
+          const selected = optimizeAudio
+            ? await fileDetails(target)
+            : upload;
+          const published = await this.loadPublished();
+          const publishedSong = published.songs.find(
+            (song) => song.number === number && song.audioUrl,
+          );
+          const nextVersion = publishedSong
+            ? Math.max(
+                Number(drafts[draftIndex].version) || 1,
+                (Number(publishedSong.version) || 1) + 1,
+              )
+            : Number(drafts[draftIndex].version) || 1;
           drafts[draftIndex] = {
             ...drafts[draftIndex],
             audioUrl: `audio/${padded}.mp3`,
-            audioSize: upload.size,
-            audioSha256: upload.sha256,
+            audioSize: selected.size,
+            audioSha256: selected.sha256,
+            version: nextVersion,
           };
+          if (optimization) drafts[draftIndex]._audioOptimization = optimization;
+          else delete drafts[draftIndex]._audioOptimization;
         } else {
           const validation = await validateElrc(target);
           drafts[draftIndex] = {
@@ -260,6 +312,7 @@ export class ContentWorkspace {
         }
       } catch (error) {
         await rm(target, { force: true });
+        await rm(source, { force: true });
         throw error;
       }
 
@@ -303,10 +356,15 @@ export class ContentWorkspace {
       );
       for (const draft of drafts) {
         validateMetadata(draft);
-        await this.publishStagedAsset(draft, 'audio');
+        const publishedAudio = await this.publishStagedAsset(draft, 'audio');
         await this.publishStagedAsset(draft, 'lyrics');
         const clean = { ...draft };
         delete clean.lyricsLines;
+        delete clean._audioOptimization;
+        if (publishedAudio) {
+          clean.audioSize = publishedAudio.size;
+          clean.audioSha256 = publishedAudio.sha256;
+        }
         merged.set(draft.number, clean);
       }
 
@@ -330,7 +388,7 @@ export class ContentWorkspace {
   async publishStagedAsset(song, kind) {
     const isAudio = kind === 'audio';
     const url = isAudio ? song.audioUrl : song.lyricsUrl;
-    if (!url) return;
+    if (!url) return null;
     const relativePath = normalizeAssetPath(url, kind);
     const staged = path.join(this.stagingDir, relativePath);
     if (!(await exists(staged))) {
@@ -341,12 +399,14 @@ export class ContentWorkspace {
           `Song ${song.number} references missing ${kind}.`,
         );
       }
-      return;
+      return null;
     }
 
     if (isAudio) await validateMp3(staged);
     else await validateElrc(staged);
-    await replaceFile(staged, path.join(this.root, relativePath));
+    const destination = path.join(this.root, relativePath);
+    await replaceFile(staged, destination);
+    return fileDetails(destination);
   }
 
   async loadPublished() {
@@ -527,6 +587,234 @@ async function writeRequestToFile(request, target, maxBytes) {
   }
 }
 
+async function optimizeUploadedAudio({
+  source,
+  target,
+  mediaTools,
+  originalSize,
+}) {
+  if (!(await mediaTools.available())) {
+    throw new HttpError(
+      503,
+      'Audio optimization requires FFmpeg and FFprobe on this computer.',
+    );
+  }
+  const sourceProbe = normalizeAudioProbe(await mediaTools.probe(source));
+  if (sourceProbe.bitRate <= targetAudioBitrate) {
+    await replaceFile(source, target, { move: true });
+    return {
+      status: 'skipped',
+      reason: 'already-efficient',
+      originalSize,
+      selectedSize: originalSize,
+      savingsBytes: 0,
+      savingsPercent: 0,
+    };
+  }
+
+  const optimized = `${target}.optimized`;
+  await rm(optimized, { force: true });
+  try {
+    await mediaTools.transcode(source, optimized);
+    await validateMp3(optimized);
+    await mediaTools.validateDecode(optimized);
+    const optimizedProbe = normalizeAudioProbe(await mediaTools.probe(optimized));
+    validateOptimizedAudio(sourceProbe, optimizedProbe);
+    const optimizedDetails = await fileDetails(optimized);
+    if (optimizedDetails.size >= originalSize) {
+      await replaceFile(source, target, { move: true });
+      return {
+        status: 'skipped',
+        reason: 'not-smaller',
+        originalSize,
+        selectedSize: originalSize,
+        savingsBytes: 0,
+        savingsPercent: 0,
+      };
+    }
+    await replaceFile(optimized, target, { move: true });
+    await rm(source, { force: true });
+    const savingsBytes = originalSize - optimizedDetails.size;
+    return {
+      status: 'optimized',
+      originalSize,
+      selectedSize: optimizedDetails.size,
+      savingsBytes,
+      savingsPercent: Math.round(savingsBytes / originalSize * 1000) / 10,
+      bitrateKbps: 128,
+      sampleRate: targetAudioSampleRate,
+      channels: targetAudioChannels,
+    };
+  } finally {
+    await rm(optimized, { force: true });
+  }
+}
+
+function normalizeAudioProbe(probe) {
+  const codec = String(probe?.codec ?? '').toLowerCase();
+  const sampleRate = Number(probe?.sampleRate);
+  const channels = Number(probe?.channels);
+  const bitRate = Number(probe?.bitRate);
+  const durationSeconds = Number(probe?.durationSeconds);
+  if (
+    codec !== 'mp3' ||
+    !Number.isFinite(sampleRate) || sampleRate <= 0 ||
+    !Number.isSafeInteger(channels) || channels <= 0 ||
+    !Number.isFinite(bitRate) || bitRate <= 0 ||
+    !Number.isFinite(durationSeconds) || durationSeconds <= 0
+  ) {
+    throw new HttpError(400, 'FFprobe could not validate this MP3 audio stream.');
+  }
+  return { codec, sampleRate, channels, bitRate, durationSeconds };
+}
+
+function validateOptimizedAudio(source, optimized) {
+  const bitrateTolerance = targetAudioBitrate * 0.06;
+  if (
+    optimized.codec !== 'mp3' ||
+    optimized.sampleRate !== targetAudioSampleRate ||
+    optimized.channels !== targetAudioChannels ||
+    Math.abs(optimized.bitRate - targetAudioBitrate) > bitrateTolerance
+  ) {
+    throw new HttpError(
+      422,
+      'Optimized audio did not match MP3, 128 kbps, 44.1 kHz stereo requirements.',
+    );
+  }
+  if (Math.abs(source.durationSeconds - optimized.durationSeconds) > 0.05) {
+    throw new HttpError(
+      422,
+      'Optimized audio duration differs from the original by more than 50 ms.',
+    );
+  }
+}
+
+async function fileDetails(file) {
+  const details = await stat(file);
+  const hash = createHash('sha256');
+  for await (const chunk of createReadStream(file)) hash.update(chunk);
+  return { size: details.size, sha256: hash.digest('hex') };
+}
+
+class FfmpegMediaTools {
+  constructor({ ffmpegPath = 'ffmpeg', ffprobePath = 'ffprobe' } = {}) {
+    this.ffmpegPath = ffmpegPath;
+    this.ffprobePath = ffprobePath;
+    this.availability = null;
+  }
+
+  available() {
+    this.availability ??= Promise.all([
+      runMediaCommand(this.ffmpegPath, ['-version'], { timeoutMs: 10000 }),
+      runMediaCommand(this.ffprobePath, ['-version'], { timeoutMs: 10000 }),
+    ]).then(() => true, () => false);
+    return this.availability;
+  }
+
+  async probe(file) {
+    const result = await runMediaCommand(this.ffprobePath, [
+      '-v', 'error',
+      '-select_streams', 'a:0',
+      '-show_entries', 'stream=codec_name,sample_rate,channels,bit_rate:format=duration,bit_rate',
+      '-of', 'json',
+      file,
+    ]);
+    let parsed;
+    try {
+      parsed = JSON.parse(result.stdout);
+    } catch {
+      throw new HttpError(422, 'FFprobe returned invalid audio metadata.');
+    }
+    const stream = parsed.streams?.[0] ?? {};
+    return {
+      codec: stream.codec_name,
+      sampleRate: stream.sample_rate,
+      channels: stream.channels,
+      bitRate: stream.bit_rate ?? parsed.format?.bit_rate,
+      durationSeconds: parsed.format?.duration,
+    };
+  }
+
+  transcode(source, destination) {
+    return runMediaCommand(this.ffmpegPath, [
+      '-hide_banner', '-loglevel', 'error', '-nostdin', '-y',
+      '-i', source,
+      '-map', '0:a:0', '-vn', '-map_metadata', '-1',
+      '-c:a', 'libmp3lame', '-b:a', '128k',
+      '-ar', '44100', '-ac', '2',
+      '-f', 'mp3',
+      destination,
+    ]);
+  }
+
+  validateDecode(file) {
+    return runMediaCommand(this.ffmpegPath, [
+      '-hide_banner', '-loglevel', 'error', '-xerror', '-nostdin',
+      '-i', file, '-map', '0:a:0', '-f', 'null', '-',
+    ]);
+  }
+}
+
+function runMediaCommand(
+  executable,
+  args,
+  { timeoutMs = mediaCommandTimeoutMs } = {},
+) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(executable, args, {
+      shell: false,
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let stdout = '';
+    let stderr = '';
+    let outputBytes = 0;
+    let settled = false;
+    let timer;
+    let terminationTimer;
+    let pendingError;
+    const finish = (error, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      clearTimeout(terminationTimer);
+      if (error) reject(error);
+      else resolve(value);
+    };
+    const terminate = (error) => {
+      if (pendingError || settled) return;
+      pendingError = error;
+      child.kill();
+      terminationTimer = setTimeout(() => {
+        child.kill('SIGKILL');
+        finish(pendingError);
+      }, 5000);
+    };
+    const collect = (target) => (chunk) => {
+      outputBytes += chunk.length;
+      if (outputBytes > mediaCommandOutputLimit) {
+        terminate(new HttpError(422, 'Media tool output exceeded the safety limit.'));
+        return;
+      }
+      if (target === 'stdout') stdout += chunk.toString('utf8');
+      else stderr += chunk.toString('utf8');
+    };
+    child.stdout.on('data', collect('stdout'));
+    child.stderr.on('data', collect('stderr'));
+    child.once('error', () => {
+      finish(new HttpError(503, 'FFmpeg or FFprobe could not be started.'));
+    });
+    child.once('close', (code) => {
+      if (pendingError) finish(pendingError);
+      else if (code === 0) finish(null, { stdout, stderr });
+      else finish(new HttpError(422, `Media validation failed${stderr ? `: ${stderr.trim().slice(0, 500)}` : '.'}`));
+    });
+    timer = setTimeout(() => {
+      terminate(new HttpError(504, 'Media processing timed out.'));
+    }, timeoutMs);
+  });
+}
+
 async function validateMp3(file) {
   const handle = await open(file);
   try {
@@ -641,10 +929,10 @@ async function serveContentFile(response, root, relativePath) {
 async function streamFile(response, file, headOnly) {
   const details = await stat(file);
   response.writeHead(200, {
-    'Content-Type': contentType(file),
-    'Content-Length': details.size,
-    'Cache-Control': 'no-store',
-    'X-Content-Type-Options': 'nosniff',
+    ...securityHeaders({
+      'Content-Type': contentType(file),
+      'Content-Length': details.size,
+    }),
   });
   if (headOnly) return response.end();
   createReadStream(file).pipe(response);
@@ -674,18 +962,101 @@ function contentType(file) {
 function sendJson(response, status, value) {
   if (response.headersSent) return;
   const body = JSON.stringify(value);
-  response.writeHead(status, {
+  response.writeHead(status, securityHeaders({
     'Content-Type': 'application/json; charset=utf-8',
     'Content-Length': Buffer.byteLength(body),
-    'Cache-Control': 'no-store',
-    'X-Content-Type-Options': 'nosniff',
-  });
+  }));
   response.end(body);
 }
 
 function sendEmpty(response, status) {
-  response.writeHead(status, { 'Cache-Control': 'no-store' });
+  response.writeHead(status, securityHeaders());
   response.end();
+}
+
+function validateRequestSource(request) {
+  const authority = request.headers.host;
+  if (typeof authority !== 'string' || !isLoopbackAuthority(authority)) {
+    throw new HttpError(403, 'Dashboard requests must use a localhost address.');
+  }
+
+  const fetchSite = request.headers['sec-fetch-site'];
+  if (fetchSite && fetchSite !== 'same-origin' && fetchSite !== 'none') {
+    throw new HttpError(403, 'Cross-origin dashboard requests are forbidden.');
+  }
+
+  const origin = request.headers.origin;
+  if (origin) {
+    let parsedOrigin;
+    try {
+      parsedOrigin = new URL(origin);
+    } catch {
+      throw new HttpError(403, 'Invalid request origin.');
+    }
+    if (
+      parsedOrigin.protocol !== 'http:' ||
+      parsedOrigin.host.toLowerCase() !== authority.toLowerCase() ||
+      !loopbackHostnames.has(parsedOrigin.hostname.toLowerCase())
+    ) {
+      throw new HttpError(403, 'Cross-origin dashboard requests are forbidden.');
+    }
+  }
+}
+
+function isLoopbackAuthority(authority) {
+  try {
+    const parsed = new URL(`http://${authority}`);
+    return (
+      parsed.username === '' &&
+      parsed.password === '' &&
+      loopbackHostnames.has(parsed.hostname.toLowerCase())
+    );
+  } catch {
+    return false;
+  }
+}
+
+function validateMutationRequest(request, expectedToken, pathname) {
+  const suppliedToken = request.headers[csrfHeaderName];
+  if (
+    typeof suppliedToken !== 'string' ||
+    !constantTimeEqual(suppliedToken, expectedToken)
+  ) {
+    throw new HttpError(403, 'Missing or invalid dashboard session token.');
+  }
+
+  const mediaType = String(request.headers['content-type'] ?? '')
+    .split(';', 1)[0]
+    .trim()
+    .toLowerCase();
+  const assetRoute = pathname.match(/^\/api\/drafts\/\d+\/(audio|lyrics)$/);
+  const permittedTypes = assetRoute?.[1] === 'audio'
+    ? new Set(['audio/mpeg', 'audio/mp3', 'application/octet-stream'])
+    : assetRoute?.[1] === 'lyrics'
+      ? new Set(['text/plain', 'application/octet-stream'])
+      : new Set(['application/json']);
+  if (!permittedTypes.has(mediaType)) {
+    throw new HttpError(415, 'Unsupported request content type.');
+  }
+}
+
+function constantTimeEqual(actual, expected) {
+  const actualBytes = Buffer.from(actual);
+  const expectedBytes = Buffer.from(expected);
+  return actualBytes.length === expectedBytes.length &&
+    timingSafeEqual(actualBytes, expectedBytes);
+}
+
+function securityHeaders(extra = {}) {
+  return {
+    'Cache-Control': 'no-store',
+    'Content-Security-Policy': "default-src 'self'; connect-src 'self'; img-src 'self' blob:; media-src 'self' blob:; script-src 'self'; style-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
+    'Cross-Origin-Resource-Policy': 'same-origin',
+    'Referrer-Policy': 'no-referrer',
+    'X-Content-Type-Options': 'nosniff',
+    'X-Frame-Options': 'DENY',
+    ...extra,
+  };
 }
 
 async function exists(file) {
@@ -724,6 +1095,11 @@ function parseArguments(args) {
     throw new Error('Port must be an integer between 0 and 65535.');
   }
   validateBaselineMaxSongNumber(baselineMaxSongNumber);
+  if (!loopbackHostnames.has(String(host).toLowerCase())) {
+    throw new Error(
+      'The dashboard may only bind to 127.0.0.1, ::1, or localhost.',
+    );
+  }
   return { contentRoot, host, port, baselineMaxSongNumber };
 }
 

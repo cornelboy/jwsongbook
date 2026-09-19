@@ -6,7 +6,8 @@ by the Flutter app.
 
 ## Start
 
-Node.js 20 or newer is required.
+Node.js 20 or newer is required. Optional MP3 optimization also requires
+`ffmpeg` and `ffprobe` to be available on `PATH`.
 
 On Windows, double-click `launch-dashboard.cmd` in the project root. It starts
 the server in the background and opens the dashboard. Running it again simply
@@ -26,12 +27,12 @@ uses a sibling `jwsongbook-downloads` repository when it exists. Otherwise it
 falls back to `../download_server` as an example workspace.
 
 The dashboard merges its generated snapshot of the Flutter app's bundled
-catalog with entries managed for remote delivery. This keeps all 162 existing
+catalog with entries managed for remote delivery. This keeps all 163 existing
 titles visible while clearly identifying songs that still need audio or lyrics.
 The mobile app merges remote entries into its local catalog metadata without
 deleting user state. Audio and lyrics themselves are downloaded from the
 remote catalog rather than bundled in the application.
-**Add song** therefore suggests 163 in a new workspace.
+**Add song** therefore suggests 164 in a new workspace.
 
 To manage a different workspace:
 
@@ -49,12 +50,12 @@ dashboard snapshot with:
 npm run sync-catalog
 ```
 
-## Add Song 163
+## Add a Future Song
 
 1. Select **Add song**. The next available number is filled automatically.
 2. Enter the official title, optional duration, and asset version.
 3. Select **Save draft**. A title-only draft is valid.
-4. Use the file controls to stage `163.mp3` and optionally `163.elrc`.
+4. Use the file controls to stage the numbered MP3 and optional ELRC file.
 5. Review the Audio and Lyrics status indicators.
 6. Select **Publish changes** and confirm.
 
@@ -63,6 +64,21 @@ Publishing copies validated assets to `audio/` and `lyrics/`, then replaces
 background manifest refresh after the download repository is deployed. A song
 can be published without audio or lyrics; the missing files can be attached in
 a later version.
+
+### Optional MP3 optimization
+
+Before choosing an MP3, select **Optimize new MP3 uploads** to request an
+explicit server-side conversion to CBR 128 kbps, 44.1 kHz stereo. The option is
+disabled when FFmpeg or FFprobe is unavailable. Embedded artwork is removed
+during conversion so large cover images are not shipped with every song.
+
+The source file on your computer is never changed. The dashboard validates the
+source, fully decodes and probes the candidate output, verifies its codec,
+bitrate, sample rate, channel count, and duration, and adopts it only when it is
+smaller. Files already at 128 kbps or below, and conversions that do not save
+space, keep the original upload. The UI reports original size, selected size,
+and savings before publication. Replacing published audio automatically raises
+that song's asset version so installed clients fetch the new bytes.
 
 ## Deploy To The App
 
@@ -78,11 +94,18 @@ accidental draft or incorrect media file from immediately reaching users.
 - Uploaded files remain in `.admin/uploads/` until publication.
 - Song numbers and metadata are validated before writing.
 - MP3 headers and word-level ELRC timestamps are checked.
+- Requested MP3 optimization uses fixed, non-shell FFmpeg arguments, bounded
+  execution time/output, fixed staging paths, and cleanup on failure.
 - File size limits are 100 MB for audio and 5 MB for lyrics.
 - SHA-256 hashes are recorded in the manifest.
 - Existing metadata is merged instead of being silently discarded.
 - Assets are placed before the manifest is swapped.
 - The local server exposes content only from `audio/` and `lyrics/`.
+- The server refuses non-loopback bind addresses and non-localhost Host headers.
+- Cross-origin requests are rejected, and every write requires a random
+  process-scoped session token sent by the dashboard UI.
+- Write endpoints accept only the expected JSON, MP3, or plain-text content
+  types. Browser-facing responses include restrictive security headers.
 
 The `.admin` workspace and generated media are ignored by Git.
 

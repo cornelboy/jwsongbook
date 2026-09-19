@@ -47,7 +47,7 @@ void main() {
 
   group('DownloadedSongInfo', () {
     test('constructs with required fields', () {
-      final song = Song(
+      const song = Song(
         id: 1,
         number: 1,
         title: 'Test Song',
@@ -56,7 +56,7 @@ void main() {
         hasSyncedLyrics: false,
       );
 
-      final info = DownloadedSongInfo(song: song, sizeBytes: 5000);
+      const info = DownloadedSongInfo(song: song, sizeBytes: 5000);
 
       expect(info.song.number, 1);
       expect(info.song.title, 'Test Song');

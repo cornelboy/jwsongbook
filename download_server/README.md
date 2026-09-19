@@ -13,6 +13,9 @@ dart run tools/prepare_download_server.dart
 ```
 
 That writes the server package to `build/download_server`.
+Each generated audio and lyrics entry includes its byte size and SHA-256 digest.
+The app verifies those values before accepting a completed download. Regenerate
+and redeploy the manifest to add integrity metadata to older catalog entries.
 
 For a separate downloads repo, use this shape:
 
@@ -75,8 +78,12 @@ python -m http.server 8080 --bind 0.0.0.0
 Then run/install the app with your PC LAN IP:
 
 ```powershell
-flutter run -d RF8M329FC9T --dart-define=SONG_MANIFEST_URL=http://YOUR_PC_IP:8080/manifest.json
+flutter run -d RF8M329FC9T --dart-define=SONG_MANIFEST_URL=http://YOUR_PC_IP:8080/manifest.json --dart-define=ALLOW_INSECURE_SONG_DOWNLOADS=true
 ```
+
+Insecure HTTP is disabled by default. Use this opt-in only for temporary local
+development on a trusted network; production manifests and assets must use
+HTTPS and remain on the manifest's origin.
 
 The manifest may use relative URLs. The app resolves them relative to
 `manifest.json`, so the same package can later move to GitHub Pages or another

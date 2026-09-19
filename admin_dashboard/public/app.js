@@ -6,6 +6,8 @@ const elements = Object.fromEntries(
     'songForm', 'editorMode', 'editorTitle', 'draftPill', 'numberInput',
     'versionInput', 'titleInput', 'durationInput', 'audioAsset', 'audioStatus',
     'audioInput', 'audioButton', 'audioPreview', 'audioProgress', 'lyricsAsset',
+    'audioOptimizationControl', 'audioOptimizationInput',
+    'audioOptimizationHelp', 'audioOptimizationResult',
     'lyricsStatus', 'lyricsInput', 'lyricsButton', 'lyricsProgress',
     'assetSummary', 'validationMessage', 'discardButton', 'resetButton',
     'saveButton', 'publishDialog', 'publishDescription', 'cancelPublishButton',
@@ -64,6 +66,12 @@ async function refreshState({ preserveSelection = true } = {}) {
   setBusy(elements.refreshButton, true);
   try {
     model.state = await api('/api/state');
+    const canOptimize = Boolean(model.state.capabilities?.audioOptimization);
+    elements.audioOptimizationInput.disabled = !canOptimize;
+    elements.audioOptimizationControl.classList.toggle('disabled', !canOptimize);
+    elements.audioOptimizationHelp.textContent = canOptimize
+      ? 'Convert explicitly selected uploads to 128 kbps, 44.1 kHz stereo. Embedded artwork is removed.'
+      : 'Install FFmpeg and FFprobe to enable optimization. Original MP3 uploads still work.';
     elements.workspacePath.textContent = model.state.contentRoot;
     elements.workspacePath.title = model.state.contentRoot;
     renderStats();
@@ -161,6 +169,7 @@ function selectSong(number, { revealOnNarrow = true } = {}) {
   elements.versionInput.value = Number(song.version) || 1;
   elements.titleInput.value = song.title ?? '';
   elements.durationInput.value = formatDuration(song.durationMs);
+  elements.audioOptimizationInput.checked = false;
   renderAssets(song);
   setValidation('Review the metadata and stage any replacement files.');
   renderList();
@@ -206,6 +215,7 @@ function resetEditor() {
 function renderAssets(song) {
   const hasAudio = Boolean(song.audioUrl);
   const hasLyrics = Boolean(song.lyricsUrl);
+  const optimization = song._audioOptimization;
   elements.audioAsset.classList.toggle('ready', hasAudio);
   elements.lyricsAsset.classList.toggle('ready', hasLyrics);
   elements.audioStatus.textContent = hasAudio
@@ -216,6 +226,14 @@ function renderAssets(song) {
     : 'Enhanced LRC, word timestamps required';
   elements.assetSummary.textContent = `${Number(hasAudio) + Number(hasLyrics)} of 2 files`;
   elements.audioPreview.classList.toggle('hidden', !hasAudio);
+  elements.audioOptimizationResult.classList.toggle('hidden', !optimization);
+  if (optimization) {
+    elements.audioOptimizationResult.textContent = optimization.status === 'optimized'
+      ? `Optimized: ${formatBytes(optimization.originalSize)} → ${formatBytes(optimization.selectedSize)} (${optimization.savingsPercent}% smaller).`
+      : optimization.reason === 'not-smaller'
+        ? `Optimization skipped: the result was not smaller. Kept the original ${formatBytes(optimization.originalSize)} file.`
+        : `Optimization skipped: this file was already efficient. Kept the original ${formatBytes(optimization.originalSize)} file.`;
+  }
   if (hasAudio) {
     elements.audioPreview.src = song.isDraft && song.audioSha256
       ? `/api/drafts/${song.number}/audio`
@@ -291,9 +309,10 @@ async function uploadSelected(kind) {
   progress.classList.remove('hidden');
   progress.firstElementChild.style.width = '0%';
   try {
-    await uploadFile(`/api/drafts/${draft.number}/${kind}`, file, (percentage) => {
+    const optimizeAudio = kind === 'audio' && elements.audioOptimizationInput.checked;
+    const uploaded = await uploadFile(`/api/drafts/${draft.number}/${kind}`, file, (percentage) => {
       progress.firstElementChild.style.width = `${percentage}%`;
-    });
+    }, { optimizeAudio });
     if (kind === 'audio') {
       releaseAudioObjectUrl();
       model.audioObjectUrl = URL.createObjectURL(file);
@@ -302,7 +321,15 @@ async function uploadSelected(kind) {
       elements.audioPreview.load();
     }
     await refreshState();
-    setValidation(`${kind === 'audio' ? 'Audio' : 'Lyrics'} validated and staged.`, 'success');
+    const optimization = uploaded?._audioOptimization;
+    setValidation(
+      optimization?.status === 'optimized'
+        ? `Audio optimized from ${formatBytes(optimization.originalSize)} to ${formatBytes(optimization.selectedSize)} (${optimization.savingsPercent}% smaller) and staged.`
+        : optimization?.status === 'skipped'
+          ? 'Audio was already efficient, so the original MP3 was staged without recompression.'
+          : `${kind === 'audio' ? 'Audio' : 'Lyrics'} validated and staged.`,
+      'success',
+    );
     showToast(`${file.name} is ready to publish.`);
   } catch (error) {
     setValidation(error.message, 'error');
@@ -366,18 +393,33 @@ function setFilter(filter) {
 }
 
 async function api(url, options) {
-  const response = await fetch(url, options);
+  const requestOptions = { ...(options ?? {}) };
+  const method = (requestOptions.method ?? 'GET').toUpperCase();
+  if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+    requestOptions.headers = new Headers(requestOptions.headers);
+    requestOptions.headers.set('X-CSRF-Token', model.state?.csrfToken ?? '');
+    if (!requestOptions.headers.has('Content-Type')) {
+      requestOptions.headers.set('Content-Type', 'application/json');
+    }
+    if (requestOptions.body == null && requestOptions.headers.get('Content-Type') === 'application/json') {
+      requestOptions.body = '{}';
+    }
+  }
+  const response = await fetch(url, requestOptions);
   if (response.status === 204) return null;
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error || `Request failed (${response.status}).`);
   return body;
 }
 
-function uploadFile(url, file, onProgress) {
+function uploadFile(url, file, onProgress, { optimizeAudio = false } = {}) {
   return new Promise((resolve, reject) => {
     const request = new XMLHttpRequest();
     request.open('PUT', url);
+    request.setRequestHeader('X-CSRF-Token', model.state?.csrfToken ?? '');
+    request.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
     request.setRequestHeader('X-File-Name', file.name);
+    if (optimizeAudio) request.setRequestHeader('X-Optimize-Audio', 'true');
     request.upload.addEventListener('progress', (event) => {
       if (event.lengthComputable) onProgress(Math.round(event.loaded / event.total * 100));
     });

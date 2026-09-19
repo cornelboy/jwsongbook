@@ -13,6 +13,8 @@ void main() {
       "lyricsUrl": "https://example.com/lyrics/001.elrc",
       "audioSize": 2450000,
       "lyricsSize": 12000,
+      "audioSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "lyricsSha256": "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB",
       "version": 2
     }
   ]
@@ -28,6 +30,8 @@ void main() {
       expect(asset.lyricsUrl.toString(), 'https://example.com/lyrics/001.elrc');
       expect(asset.audioSizeBytes, 2450000);
       expect(asset.lyricsSizeBytes, 12000);
+      expect(asset.audioSha256, List.filled(64, 'a').join());
+      expect(asset.lyricsSha256, List.filled(64, 'b').join());
       expect(asset.version, 2);
     });
 
@@ -86,7 +90,8 @@ void main() {
   "songs": [
     {
       "number": 2,
-      "audioUrl": "https://example.com/audio/002.mp3"
+      "audioUrl": "https://example.com/audio/002.mp3",
+      "audioSize": 42
     }
   ]
 }
@@ -103,7 +108,9 @@ void main() {
     {
       "number": 3,
       "audioUrl": "audio/003.mp3",
-      "lyricsUrl": "lyrics/003.elrc"
+      "lyricsUrl": "lyrics/003.elrc",
+      "audioSize": 42,
+      "lyricsSize": 42
     }
   ]
 }
@@ -120,6 +127,80 @@ void main() {
       expect(
         asset?.lyricsUrl.toString(),
         'https://example.com/downloads/lyrics/003.elrc',
+      );
+    });
+
+    test('parses legacy integrity metadata but validates supplied hashes', () {
+      final legacy = SongManifest.fromJsonString('''
+{"songs":[{"number":1,"audioUrl":"https://example.com/1.mp3","audioSize":12}]}
+''');
+      expect(legacy.assetFor(1)?.audioSha256, isNull);
+
+      expect(
+        () => SongManifest.fromJsonString('''
+{"songs":[{"number":1,"audioUrl":"https://example.com/1.mp3","audioSize":12,"audioSha256":"not-a-digest"}]}
+'''),
+        throwsFormatException,
+      );
+    });
+
+    test('downloadable assets require bounded positive declared sizes', () {
+      for (final size in <int>[0, -1, RemoteSongAsset.maxAudioSizeBytes + 1]) {
+        expect(
+          () => SongManifest.fromJsonString(
+            '{"songs":[{"number":1,"audioUrl":"https://example.com/1.mp3","audioSize":$size}]}',
+          ),
+          throwsFormatException,
+        );
+      }
+      expect(
+        () => SongManifest.fromJsonString(
+          '{"songs":[{"number":1,"audioUrl":"https://example.com/1.mp3"}]}',
+        ),
+        throwsFormatException,
+      );
+    });
+
+    test('rejects insecure, credentialed, fragmented and cross-origin URLs',
+        () {
+      const invalidUrls = <String>[
+        'http://example.com/1.mp3',
+        'ftp://example.com/1.mp3',
+        'https://user:pass@example.com/1.mp3',
+        'https://example.com/1.mp3#fragment',
+      ];
+      for (final url in invalidUrls) {
+        expect(
+          () => SongManifest.fromJsonString(
+            '{"songs":[{"number":1,"audioUrl":"$url","audioSize":12}]}',
+          ),
+          throwsFormatException,
+          reason: url,
+        );
+      }
+
+      expect(
+        () => SongManifest.fromJsonString(
+          '{"songs":[{"number":1,"audioUrl":"https://cdn.example/1.mp3","audioSize":12}]}',
+          baseUri: Uri.parse('https://example.com/manifest.json'),
+        ),
+        throwsFormatException,
+      );
+    });
+
+    test('rejects an insecure manifest origin', () {
+      expect(
+        () => SongManifest.fromJsonString(
+          '{"songs":[{"number":1,"audioUrl":"1.mp3","audioSize":12}]}',
+          baseUri: Uri.parse('http://example.com/manifest.json'),
+        ),
+        throwsFormatException,
+      );
+      expect(
+        () => SongManifest.validateManifestUri(
+          Uri.parse('https://example.com/manifest.json#fragment'),
+        ),
+        throwsFormatException,
       );
     });
   });

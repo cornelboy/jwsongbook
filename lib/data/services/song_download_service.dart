@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jwsongbook/data/database/app_database.dart';
 import 'package:jwsongbook/data/models/song_manifest_model.dart';
@@ -33,10 +34,54 @@ class SongDownloadService {
   static const Duration _receiveTimeout = Duration(seconds: 30);
   static const Duration _retryDelay = Duration(milliseconds: 500);
 
+  static bool isValidContentRange({
+    required String? value,
+    required int resumeFrom,
+    required int expectedSize,
+  }) {
+    if (value == null) return false;
+    final match = RegExp(r'^bytes (\d+)-(\d+)/(\d+)$').firstMatch(value);
+    if (match == null) return false;
+    final start = int.tryParse(match.group(1)!);
+    final end = int.tryParse(match.group(2)!);
+    final total = int.tryParse(match.group(3)!);
+    return start == resumeFrom &&
+        total == expectedSize &&
+        end == expectedSize - 1 &&
+        resumeFrom < expectedSize;
+  }
+
+  static void validateRedirectChain(
+    Uri requestedUri,
+    Iterable<Uri> redirectLocations,
+  ) {
+    var currentUri = requestedUri;
+    for (final location in redirectLocations) {
+      currentUri = currentUri.resolveUri(location);
+      SongManifest.validateAssetUri(
+        currentUri,
+        manifestUri: requestedUri,
+      );
+    }
+  }
+
+  static Future<bool> hasExpectedIntegrity(
+    File file, {
+    required int expectedSize,
+    required String? expectedSha256,
+  }) async {
+    if (!await file.exists()) return false;
+    if (await file.length() != expectedSize) return false;
+    if (expectedSha256 == null) return true;
+    final actual = await sha256.bind(file.openRead()).first;
+    return actual.toString() == expectedSha256;
+  }
+
   final SongsRepository _songsRepository;
   final LyricsRepository _lyricsRepository;
 
   Future<SongManifest> fetchManifest(Uri manifestUri) async {
+    SongManifest.validateManifestUri(manifestUri);
     final content = await _readUriAsString(manifestUri);
     return SongManifest.fromJsonString(content, baseUri: manifestUri);
   }
@@ -73,10 +118,17 @@ class SongDownloadService {
       folder: 'audio',
       extension: 'mp3',
     );
-    if (!await _fileMatchesExpectedSize(audioFile, asset.audioSizeBytes)) {
+    if (!await _fileMatchesExpectedIntegrity(
+      audioFile,
+      expectedSize: asset.audioSizeBytes!,
+      expectedSha256: asset.audioSha256,
+    )) {
       await _downloadToFile(
         uri: audioUrl,
         target: audioFile,
+        expectedSize: asset.audioSizeBytes!,
+        expectedSha256: asset.audioSha256,
+        maximumSize: RemoteSongAsset.maxAudioSizeBytes,
         cancelToken: cancelToken,
         onProgress: onAudioProgress,
       );
@@ -89,13 +141,17 @@ class SongDownloadService {
         folder: 'lyrics',
         extension: 'elrc',
       );
-      if (!await _fileMatchesExpectedSize(
+      if (!await _fileMatchesExpectedIntegrity(
         lyricsFile,
-        asset.lyricsSizeBytes,
+        expectedSize: asset.lyricsSizeBytes!,
+        expectedSha256: asset.lyricsSha256,
       )) {
         await _downloadToFile(
           uri: lyricsUrl,
           target: lyricsFile,
+          expectedSize: asset.lyricsSizeBytes!,
+          expectedSha256: asset.lyricsSha256,
+          maximumSize: RemoteSongAsset.maxLyricsSizeBytes,
           cancelToken: cancelToken,
         );
       }
@@ -143,7 +199,19 @@ class SongDownloadService {
       folder: 'lyrics',
       extension: 'elrc',
     );
-    await _downloadToFile(uri: lyricsUrl, target: lyricsFile);
+    if (!await _fileMatchesExpectedIntegrity(
+      lyricsFile,
+      expectedSize: asset.lyricsSizeBytes!,
+      expectedSha256: asset.lyricsSha256,
+    )) {
+      await _downloadToFile(
+        uri: lyricsUrl,
+        target: lyricsFile,
+        expectedSize: asset.lyricsSizeBytes!,
+        expectedSha256: asset.lyricsSha256,
+        maximumSize: RemoteSongAsset.maxLyricsSizeBytes,
+      );
+    }
     await _lyricsRepository.importElrcForSong(
       song,
       await lyricsFile.readAsString(),
@@ -163,8 +231,10 @@ class SongDownloadService {
   }
 
   Future<void> removeDownload(Song song) async {
+    final downloadsRoot = await _downloadsRoot();
     for (final file in await _downloadFilesForSong(song)) {
-      if (await file.exists()) {
+      if (await file.exists() &&
+          await _isWithinCanonicalRoot(file, downloadsRoot)) {
         await file.delete();
       }
     }
@@ -189,8 +259,13 @@ class SongDownloadService {
       request.headers.set(HttpHeaders.connectionHeader, 'close');
       request.headers.set(HttpHeaders.userAgentHeader, 'jwsongbook/0.1');
       final response = await request.close();
+      _validateRedirects(uri, response);
       _throwIfFailed(uri, response);
-      final bytes = await _readResponseBytes(uri, response);
+      final bytes = await _readResponseBytes(
+        uri,
+        response,
+        maximumSize: SongManifest.maxEncodedBytes,
+      );
       return utf8.decode(bytes);
     } finally {
       client.close(force: true);
@@ -202,12 +277,11 @@ class SongDownloadService {
     required String folder,
     required String extension,
   }) async {
-    final docsDir = await getApplicationDocumentsDirectory();
+    final downloadsRoot = await _downloadsRoot();
     final paddedNumber = songNumber.toString().padLeft(3, '0');
     return File(
       p.join(
-        docsDir.path,
-        'downloads',
+        downloadsRoot.path,
         folder,
         '$paddedNumber.$extension',
       ),
@@ -244,22 +318,47 @@ class SongDownloadService {
     return files;
   }
 
-  Future<bool> _fileMatchesExpectedSize(File file, int? expectedSize) async {
-    if (!await file.exists()) return false;
-    if (expectedSize == null) return true;
-    return await file.length() == expectedSize;
+  Future<Directory> _downloadsRoot() async {
+    final docsDir = await getApplicationDocumentsDirectory();
+    return Directory(p.join(docsDir.path, 'downloads'));
+  }
+
+  Future<bool> _fileMatchesExpectedIntegrity(
+    File file, {
+    required int expectedSize,
+    required String? expectedSha256,
+  }) async {
+    return hasExpectedIntegrity(
+      file,
+      expectedSize: expectedSize,
+      expectedSha256: expectedSha256,
+    );
   }
 
   Future<void> _downloadToFile({
     required Uri uri,
     required File target,
+    required int expectedSize,
+    required String? expectedSha256,
+    required int maximumSize,
     DownloadCancelToken? cancelToken,
     SongDownloadProgressCallback? onProgress,
   }) async {
+    SongManifest.validateManifestUri(uri);
+    if (expectedSize <= 0 || expectedSize > maximumSize) {
+      throw ArgumentError.value(
+        expectedSize,
+        'expectedSize',
+        'Expected size is outside the allowed range.',
+      );
+    }
     await _withRetries(
       () => _downloadToFileOnce(
         uri: uri,
         target: target,
+        expectedSize: expectedSize,
+        expectedSha256: expectedSha256,
+        maximumSize: maximumSize,
         cancelToken: cancelToken,
         onProgress: onProgress,
       ),
@@ -269,6 +368,9 @@ class SongDownloadService {
   Future<void> _downloadToFileOnce({
     required Uri uri,
     required File target,
+    required int expectedSize,
+    required String? expectedSha256,
+    required int maximumSize,
     DownloadCancelToken? cancelToken,
     SongDownloadProgressCallback? onProgress,
   }) async {
@@ -290,11 +392,26 @@ class SongDownloadService {
       }
 
       final response = await request.close();
+      _validateRedirects(uri, response);
+      if (resumeFrom > 0 &&
+          response.statusCode == HttpStatus.requestedRangeNotSatisfiable) {
+        await tempFile.delete();
+      }
       _throwIfFailed(uri, response);
 
-      final canResume =
-          resumeFrom > 0 && response.statusCode == HttpStatus.partialContent;
-      if (resumeFrom > 0 && !canResume) {
+      var canResume = false;
+      if (resumeFrom > 0 && response.statusCode == HttpStatus.partialContent) {
+        if (!_validContentRange(response, resumeFrom, expectedSize)) {
+          await tempFile.delete();
+          throw HttpException(
+            'Server returned an invalid Content-Range for $uri.',
+            uri: uri,
+          );
+        }
+        canResume = true;
+      } else if (resumeFrom > 0) {
+        // A server may legitimately ignore Range and return a complete 200.
+        // Discard the partial file and consume this response from byte zero.
         await tempFile.delete();
       }
 
@@ -310,10 +427,25 @@ class SongDownloadService {
               ? resumeFrom + contentLength
               : contentLength;
 
+      if (expectedSize > maximumSize ||
+          resumeFrom > expectedSize ||
+          (totalBytes != null && totalBytes != expectedSize)) {
+        throw HttpException(
+          'Download size does not match the manifest for $uri.',
+          uri: uri,
+        );
+      }
+
       try {
         await for (final chunk in response.timeout(_receiveTimeout)) {
           cancelToken?.throwIfCancelled();
           receivedBytes += chunk.length;
+          if (receivedBytes > expectedSize || receivedBytes > maximumSize) {
+            throw HttpException(
+              'Download exceeded its allowed size for $uri.',
+              uri: uri,
+            );
+          }
           sink.add(chunk);
           onProgress?.call(
             SongDownloadProgress(
@@ -328,9 +460,17 @@ class SongDownloadService {
 
       cancelToken?.throwIfCancelled();
 
-      if (totalBytes != null && receivedBytes != totalBytes) {
+      if (receivedBytes != expectedSize) {
         throw HttpException(
-          'Only received $receivedBytes of $totalBytes bytes from $uri.',
+          'Received $receivedBytes of $expectedSize declared bytes from $uri.',
+          uri: uri,
+        );
+      }
+
+      final actualSha256 = await _sha256Of(tempFile);
+      if (expectedSha256 != null && actualSha256 != expectedSha256) {
+        throw HttpException(
+          'SHA-256 verification failed for $uri.',
           uri: uri,
         );
       }
@@ -380,15 +520,22 @@ class SongDownloadService {
 
   Future<List<int>> _readResponseBytes(
     Uri uri,
-    HttpClientResponse response,
-  ) async {
+    HttpClientResponse response, {
+    required int maximumSize,
+  }) async {
     final builder = BytesBuilder(copy: false);
     var receivedBytes = 0;
     final totalBytes =
         response.contentLength >= 0 ? response.contentLength : null;
+    if (totalBytes != null && totalBytes > maximumSize) {
+      throw HttpException('Response from $uri is too large.', uri: uri);
+    }
 
     await for (final chunk in response.timeout(_receiveTimeout)) {
       receivedBytes += chunk.length;
+      if (receivedBytes > maximumSize) {
+        throw HttpException('Response from $uri is too large.', uri: uri);
+      }
       builder.add(chunk);
     }
 
@@ -400,6 +547,39 @@ class SongDownloadService {
     }
 
     return builder.takeBytes();
+  }
+
+  bool _validContentRange(
+    HttpClientResponse response,
+    int resumeFrom,
+    int expectedSize,
+  ) {
+    return isValidContentRange(
+      value: response.headers.value(HttpHeaders.contentRangeHeader),
+      resumeFrom: resumeFrom,
+      expectedSize: expectedSize,
+    );
+  }
+
+  void _validateRedirects(Uri requestedUri, HttpClientResponse response) {
+    validateRedirectChain(
+      requestedUri,
+      response.redirects.map((redirect) => redirect.location),
+    );
+  }
+
+  Future<String> _sha256Of(File file) async =>
+      (await sha256.bind(file.openRead()).first).toString();
+
+  Future<bool> _isWithinCanonicalRoot(File file, Directory root) async {
+    try {
+      await root.create(recursive: true);
+      final canonicalRoot = await root.resolveSymbolicLinks();
+      final canonicalFile = await file.resolveSymbolicLinks();
+      return p.isWithin(canonicalRoot, canonicalFile);
+    } on FileSystemException {
+      return false;
+    }
   }
 
   void _throwIfFailed(Uri uri, HttpClientResponse response) {

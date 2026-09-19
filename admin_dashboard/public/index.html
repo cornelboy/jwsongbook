@@ -165,6 +165,14 @@
                 </button>
               </div>
               <div class="upload-progress hidden" id="audioProgress"><span></span></div>
+              <label class="optimization-control" id="audioOptimizationControl">
+                <input id="audioOptimizationInput" type="checkbox">
+                <span>
+                  <strong>Optimize new MP3 uploads</strong>
+                  <small id="audioOptimizationHelp">Convert explicitly selected uploads to 128 kbps, 44.1 kHz stereo. Embedded artwork is removed.</small>
+                </span>
+              </label>
+              <div class="optimization-result hidden" id="audioOptimizationResult" role="status"></div>
 
               <div class="asset-row" id="lyricsAsset">
                 <div class="asset-icon"><i data-lucide="captions"></i></div>

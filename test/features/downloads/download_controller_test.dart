@@ -47,8 +47,8 @@ void main() {
     final service = _MockSongDownloadService();
     final manifest = SongManifest.fromJsonString(
       '{"songs":['
-      '{"number":1,"audioUrl":"https://example.com/1.mp3"},'
-      '{"number":2,"audioUrl":"https://example.com/2.mp3"}'
+      '{"number":1,"audioUrl":"https://example.com/1.mp3","audioSize":12},'
+      '{"number":2,"audioUrl":"https://example.com/2.mp3","audioSize":12}'
       ']}',
     );
     when(
