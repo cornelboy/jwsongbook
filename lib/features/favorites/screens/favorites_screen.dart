@@ -26,6 +26,11 @@ class FavoritesScreen extends ConsumerWidget {
     final favoritesAsync = ref.watch(_favoritesProvider);
     final currentSong =
         ref.watch(playerNotifierProvider.select((s) => s.currentSong));
+    final isPlaying = ref.watch(
+      playerNotifierProvider.select(
+        (state) => state.isPlaying && !state.isCompleted,
+      ),
+    );
     final downloadState = ref.watch(downloadControllerProvider);
 
     return Scaffold(
@@ -77,6 +82,8 @@ class FavoritesScreen extends ConsumerWidget {
                         return SongCard(
                           song: song,
                           isCurrentlyPlaying: currentSong?.id == song.id,
+                          showPlaybackIndicator:
+                              currentSong?.id == song.id && isPlaying,
                           downloadStatus: downloadStatus,
                           showDownloadedIndicator: false,
                           onTap: () => unawaited(_playSong(song, context, ref)),

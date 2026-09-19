@@ -42,6 +42,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         : ref.watch(searchSongsProvider(_query));
     final currentSong =
         ref.watch(playerNotifierProvider.select((s) => s.currentSong));
+    final isPlaying = ref.watch(
+      playerNotifierProvider.select(
+        (state) => state.isPlaying && !state.isCompleted,
+      ),
+    );
     final downloadState = ref.watch(downloadControllerProvider);
     final hasQuery = _query.isNotEmpty;
 
@@ -122,6 +127,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                         SongCard(
                           song: song,
                           isCurrentlyPlaying: currentSong?.id == song.id,
+                          showPlaybackIndicator:
+                              currentSong?.id == song.id && isPlaying,
                           downloadStatus: downloadStatus,
                           onTap: () => unawaited(_playSong(song, context)),
                           onDownloadTap: () => _handleDownloadAction(
