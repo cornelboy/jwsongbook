@@ -40,11 +40,24 @@ Future<void> capture(WidgetTester tester, String name) async {
 
 class _Player extends PlayerNotifier {
   List<int>? played;
+  int playPauseToggles = 0;
+
   @override
   PlayerState build() => const PlayerState();
+
+  @override
+  Future<void> togglePlayPause() async {
+    playPauseToggles += 1;
+    state = state.copyWith(isPlaying: !state.isPlaying);
+  }
+
   @override
   Future<void> playPlaylist(List<Song> songs, {int startIndex = 0}) async {
     played = songs.map((s) => s.number).toList();
+    state = state.copyWith(
+      currentSong: songs[startIndex],
+      isPlaying: true,
+    );
   }
 }
 
@@ -380,11 +393,33 @@ void main() {
     expect(find.byTooltip('Drag to reorder'), findsNothing);
     await capture(tester, 'playlist-detail');
     await tester.tap(find.byTooltip('Play playlist in order'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 80)),
+    );
+    await tester.pump();
     expect(player.played, [1, 3]);
+    expect(find.text('Player'), findsNothing);
+    expect(find.byTooltip('Pause playlist'), findsOneWidget);
+    expect(find.byIcon(Icons.pause_rounded), findsOneWidget);
+    expect(find.byKey(const ValueKey('playing-indicator')), findsOneWidget);
+
+    await tester.tap(find.text('Song 1'));
+    await tester.pumpAndSettle();
     expect(find.text('Player'), findsOneWidget);
-    router.go('/playlists/$id');
+    router.pop();
+    await tester.pump();
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 80)),
+    );
+    await tester.pump();
+    expect(find.text('Evening'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Pause playlist'));
     await flush(tester);
+    expect(player.playPauseToggles, 1);
+    expect(find.byTooltip('Play playlist in order'), findsOneWidget);
+
     await tester.tap(find.byTooltip('Options for song 001'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Remove from this playlist'));

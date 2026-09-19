@@ -35,8 +35,8 @@ class PlaylistDetailScreen extends ConsumerWidget {
     final downloadInProgress =
         ref.watch(playlistDownloadInProgressProvider(playlistId));
     final isReordering = ref.watch(playlistReorderModeProvider(playlistId));
-    final current =
-        ref.watch(playerNotifierProvider.select((s) => s.currentSong?.id));
+    final playerState = ref.watch(playerNotifierProvider);
+    final current = playerState.currentSong?.id;
     return Scaffold(
       appBar: AppBar(
         title: isReordering ? const Text('Reorder songs') : null,
@@ -109,6 +109,11 @@ class PlaylistDetailScreen extends ConsumerWidget {
                         !downloads.statusFor(song.number).isDownloaded,
                   )
                   .toList();
+              final hasCurrentPlaylistSong =
+                  current != null && songs.any((song) => song.id == current);
+              final isPlaylistPlaying = hasCurrentPlaylistSong &&
+                  playerState.isPlaying &&
+                  !playerState.isCompleted;
               return Column(
                 children: [
                   if (isReordering)
@@ -122,12 +127,19 @@ class PlaylistDetailScreen extends ConsumerWidget {
                       downloadInProgress: downloadInProgress,
                       onPlay: playable.isEmpty
                           ? null
-                          : () => _play(
-                                context,
-                                ref,
-                                songs,
-                                songs.indexOf(playable.first),
-                              ),
+                          : hasCurrentPlaylistSong
+                              ? () => unawaited(
+                                    ref
+                                        .read(playerNotifierProvider.notifier)
+                                        .togglePlayPause(),
+                                  )
+                              : () => _play(
+                                    context,
+                                    ref,
+                                    songs,
+                                    songs.indexOf(playable.first),
+                                  ),
+                      isPlaying: isPlaylistPlaying,
                       onDownload: missing.isEmpty || downloadInProgress
                           ? null
                           : () => unawaited(
@@ -173,11 +185,20 @@ class PlaylistDetailScreen extends ConsumerWidget {
                                 song: song,
                                 playlistId: playlistId,
                                 isCurrentlyPlaying: current == song.id,
+                                showPlaybackIndicator: current == song.id &&
+                                    playerState.isPlaying &&
+                                    !playerState.isCompleted,
                                 downloadStatus: status,
                                 showOptions: !isReordering,
                                 onTap: isReordering
                                     ? null
-                                    : () => _play(context, ref, songs, i),
+                                    : current == song.id
+                                        ? () => unawaited(
+                                              context.push(
+                                                AppRoutes.nowPlaying,
+                                              ),
+                                            )
+                                        : () => _play(context, ref, songs, i),
                                 onDownloadTap: () {
                                   if (status.isDownloading) {
                                     ref
@@ -283,7 +304,6 @@ class PlaylistDetailScreen extends ConsumerWidget {
         .read(playerNotifierProvider.notifier)
         .playPlaylist(songs, startIndex: index);
     supersedePendingDownloadPlayback(ref);
-    if (context.mounted) context.go(AppRoutes.nowPlaying);
   }
 }
 
@@ -295,6 +315,7 @@ class _PlaylistHeader extends StatelessWidget {
     required this.unavailableCount,
     required this.downloadInProgress,
     required this.onPlay,
+    required this.isPlaying,
     required this.onDownload,
     required this.onAddSongs,
     required this.onReorder,
@@ -306,6 +327,7 @@ class _PlaylistHeader extends StatelessWidget {
   final int unavailableCount;
   final bool downloadInProgress;
   final VoidCallback? onPlay;
+  final bool isPlaying;
   final VoidCallback? onDownload;
   final VoidCallback onAddSongs;
   final VoidCallback? onReorder;
@@ -392,7 +414,8 @@ class _PlaylistHeader extends StatelessWidget {
               ),
               const Spacer(),
               Tooltip(
-                message: 'Play playlist in order',
+                message:
+                    isPlaying ? 'Pause playlist' : 'Play playlist in order',
                 child: IconButton.filled(
                   key: const ValueKey('playlist-play-button'),
                   onPressed: onPlay,
@@ -403,7 +426,10 @@ class _PlaylistHeader extends StatelessWidget {
                     disabledBackgroundColor: colors.card,
                     disabledForegroundColor: colors.textInactive,
                   ),
-                  icon: const Icon(Icons.play_arrow_rounded, size: 30),
+                  icon: Icon(
+                    isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                    size: 30,
+                  ),
                 ),
               ),
             ],

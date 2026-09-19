@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:jwsongbook/core/platform/lyrics_overlay_bubble.dart';
 import 'package:jwsongbook/core/theme/app_colors.dart';
@@ -272,6 +273,12 @@ class _NowPlayingHeader extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
         child: Row(
           children: [
+            if (context.canPop())
+              IconButton(
+                tooltip: 'Back',
+                icon: const Icon(Icons.arrow_back_rounded),
+                onPressed: context.pop,
+              ),
             _SongNumberBadge(song: song),
             const SizedBox(width: 12),
             Expanded(

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jwsongbook/core/theme/app_colors.dart';
@@ -17,6 +19,7 @@ class SongCard extends ConsumerWidget {
     this.onDownloadTap,
     this.downloadStatus = const SongDownloadStatus.idle(),
     this.isCurrentlyPlaying = false,
+    this.showPlaybackIndicator = false,
     this.showDownloadedIndicator = true,
     this.showOptions = true,
   });
@@ -27,6 +30,7 @@ class SongCard extends ConsumerWidget {
   final VoidCallback? onDownloadTap;
   final SongDownloadStatus downloadStatus;
   final bool isCurrentlyPlaying;
+  final bool showPlaybackIndicator;
   final bool showDownloadedIndicator;
   final bool showOptions;
 
@@ -86,20 +90,22 @@ class SongCard extends ConsumerWidget {
                     opacity: animation,
                     child: ScaleTransition(scale: animation, child: child),
                   ),
-                  child: _DownloadAction(
-                    key: ValueKey(
-                      '${song.hasLocalAudio || downloadStatus.isDownloaded}-'
-                      '${downloadStatus.isDownloading}-'
-                      '${downloadStatus.isPaused}-'
-                      '${downloadStatus.hasError}-'
-                      '$showDownloadedIndicator',
-                    ),
-                    hasLocalAudio:
-                        song.hasLocalAudio || downloadStatus.isDownloaded,
-                    status: downloadStatus,
-                    onTap: onDownloadTap,
-                    showDownloadedIndicator: showDownloadedIndicator,
-                  ),
+                  child: showPlaybackIndicator
+                      ? const _PlayingIndicator()
+                      : _DownloadAction(
+                          key: ValueKey(
+                            '${song.hasLocalAudio || downloadStatus.isDownloaded}-'
+                            '${downloadStatus.isDownloading}-'
+                            '${downloadStatus.isPaused}-'
+                            '${downloadStatus.hasError}-'
+                            '$showDownloadedIndicator',
+                          ),
+                          hasLocalAudio:
+                              song.hasLocalAudio || downloadStatus.isDownloaded,
+                          status: downloadStatus,
+                          onTap: onDownloadTap,
+                          showDownloadedIndicator: showDownloadedIndicator,
+                        ),
                 ),
                 if (showOptions)
                   IconButton(
@@ -121,6 +127,85 @@ class SongCard extends ConsumerWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _PlayingIndicator extends StatefulWidget {
+  const _PlayingIndicator();
+
+  @override
+  State<_PlayingIndicator> createState() => _PlayingIndicatorState();
+}
+
+class _PlayingIndicatorState extends State<_PlayingIndicator>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 720),
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _controller.stop();
+      _controller.value = 0.5;
+    } else if (!_controller.isAnimating) {
+      _controller.repeat();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    final reducedMotion = MediaQuery.disableAnimationsOf(context);
+
+    return Semantics(
+      label: 'Now playing',
+      child: SizedBox.square(
+        key: const ValueKey('playing-indicator'),
+        dimension: 48,
+        child: Center(
+          child: AnimatedBuilder(
+            animation: _controller,
+            builder: (context, _) {
+              final progress = reducedMotion ? 0.5 : _controller.value;
+              return Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: List.generate(3, (index) {
+                  final wave = math.sin((progress + index / 3) * math.pi * 2);
+                  final height = 8.0 + ((wave + 1) / 2) * 12;
+                  return Padding(
+                    padding: EdgeInsets.only(right: index == 2 ? 0 : 3),
+                    child: Container(
+                      width: 3,
+                      height: height,
+                      decoration: BoxDecoration(
+                        color: colors.primaryPurple,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  );
+                }),
+              );
+            },
+          ),
+        ),
       ),
     );
   }
